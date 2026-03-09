@@ -33,17 +33,21 @@ export async function parseExcelOrCSV(file, config) {
 }
 
 function mapHeadersAndValidate(rawRows, config) {
-  // Simplified fuzzy matching: fallback to exact matches or lowercase
-  // In a full implementation, you'd match against config.alias definitions
   const normalizedRows = rawRows.map((row, index) => {
     const getVal = (keys) => {
-      const k = Object.keys(row).find(k => keys.includes(k.toLowerCase().trim()));
+      // Allow partial matches or exact lowercased matches
+      const k = Object.keys(row).find(actualKey => {
+        const normActual = actualKey.toLowerCase().trim();
+        return keys.some(expected => normActual.includes(expected));
+      });
       return k ? row[k] : undefined;
     };
 
     const parseCoord = (str) => {
-      if (!str || typeof str !== 'string') return null;
-      const parts = str.split(/\s+/).map(Number);
+      if (!str) return null;
+      // Handle both string coordinates and objects if already parsed
+      if (typeof str === 'object' && str.x !== undefined) return str;
+      const parts = String(str).split(/[,\s]+/).map(Number).filter(n => !isNaN(n));
       if (parts.length >= 3) return { x: parts[0], y: parts[1], z: parts[2] };
       return null;
     };
@@ -67,6 +71,76 @@ function mapHeadersAndValidate(rawRows, config) {
   });
 
   return validateInputRows(normalizedRows);
+}
+
+export async function parsePCF(file, config) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const lines = text.split(/\r?\n/);
+
+        const rawRows = [];
+        let currentRow = null;
+        let rowIndex = 1;
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          // Ignore header items for data table parsing
+          if (["ISOGEN-FILES", "UNITS-BORE", "UNITS-CO-ORDS", "UNITS-WEIGHT", "UNITS-BOLT-DIA", "UNITS-BOLT-LENGTH", "PIPELINE-REFERENCE", "PROJECT-IDENTIFIER", "AREA"].some(h => line.startsWith(h))) {
+            continue;
+          }
+
+          if (line.startsWith("MESSAGE-SQUARE")) continue; // Start of a block, but we wait for the type
+
+          if (!line.startsWith(" ") && !line.startsWith("\t")) {
+            // New component
+            if (currentRow) rawRows.push(currentRow);
+            currentRow = { _rowIndex: rowIndex++, type: trimmed, ca: {} };
+            continue;
+          }
+
+          if (currentRow) {
+            const parts = trimmed.split(/\s+/);
+            const key = parts[0];
+
+            if (key === "END-POINT" && parts.length >= 5) {
+              const pt = { x: Number(parts[1]), y: Number(parts[2]), z: Number(parts[3]) };
+              currentRow.bore = Number(parts[4]);
+              if (!currentRow.ep1) currentRow.ep1 = pt;
+              else currentRow.ep2 = pt;
+            } else if (key === "CENTRE-POINT" && parts.length >= 5) {
+              currentRow.cp = { x: Number(parts[1]), y: Number(parts[2]), z: Number(parts[3]) };
+              if (!currentRow.bore) currentRow.bore = Number(parts[4]);
+            } else if (key === "BRANCH1-POINT" && parts.length >= 5) {
+              currentRow.bp = { x: Number(parts[1]), y: Number(parts[2]), z: Number(parts[3]) };
+              currentRow.branchBore = Number(parts[4]);
+            } else if (key === "CO-ORDS" && parts.length >= 5) {
+              currentRow.supportCoor = { x: Number(parts[1]), y: Number(parts[2]), z: Number(parts[3]) };
+            } else if (key === "<SKEY>") {
+              currentRow.skey = parts[1];
+            } else if (key === "<SUPPORT_NAME>") {
+              currentRow.supportName = parts[1];
+            } else if (key === "<SUPPORT_GUID>") {
+              currentRow.supportGuid = parts[1];
+            } else if (key.startsWith("COMPONENT-ATTRIBUTE")) {
+              const caNum = key.replace("COMPONENT-ATTRIBUTE", "");
+              currentRow.ca[caNum] = parts.slice(1).join(" ");
+            }
+          }
+        }
+        if (currentRow) rawRows.push(currentRow);
+        resolve(validateInputRows(rawRows));
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsText(file);
+  });
 }
 
 export async function exportToExcel(dataTable) {

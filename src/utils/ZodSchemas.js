@@ -10,8 +10,8 @@ export const CoordSchema = z.object({
 // Schema for a Component Data Row
 export const ComponentRowSchema = z.object({
   _rowIndex: z.number(),
-  _modified: z.record(z.string()).optional(),
-  _logTags: z.array(z.string()).optional(),
+  _modified: z.any().optional(),
+  _logTags: z.any().optional(),
 
   csvSeqNo: z.union([z.string(), z.number()]).optional().catch(""),
   type: z.string().toUpperCase().catch("UNKNOWN"),
@@ -22,17 +22,17 @@ export const ComponentRowSchema = z.object({
   bore: z.number().catch(0),
   branchBore: z.number().nullable().optional().catch(null),
 
-  ep1: CoordSchema.optional().catch(null),
-  ep2: CoordSchema.optional().catch(null),
-  cp: CoordSchema.optional().catch(null),
-  bp: CoordSchema.optional().catch(null),
-  supportCoor: CoordSchema.optional().catch(null),
+  ep1: z.any().optional(),
+  ep2: z.any().optional(),
+  cp: z.any().optional(),
+  bp: z.any().optional(),
+  supportCoor: z.any().optional(),
 
   skey: z.string().optional().catch(""),
   supportName: z.string().optional().catch(""),
   supportGuid: z.string().optional().catch(""),
 
-  ca: z.record(z.union([z.string(), z.number(), z.null()])).optional().catch({}),
+  ca: z.record(z.any()).optional().catch({}),
 
   fixingAction: z.string().nullable().optional().catch(null),
   fixingActionTier: z.number().nullable().optional().catch(null),
