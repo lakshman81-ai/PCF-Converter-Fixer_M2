@@ -59,15 +59,18 @@ export function DebugTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {log.map((entry, index) => (
-                <tr key={index} className={`hover:bg-slate-50 ${entry.type === 'Error' ? 'bg-red-50/20' : entry.type === 'Warning' ? 'bg-orange-50/20' : ''}`}>
-                  <td className="px-3 py-2 text-slate-400 text-xs whitespace-nowrap">{entry.timestamp.substring(11, 23)}</td>
-                  <td className={`px-3 py-2 font-medium ${entry.type === 'Error' ? 'text-red-600' : entry.type === 'Warning' ? 'text-orange-600' : entry.type === 'Fix' ? 'text-amber-600' : entry.type === 'Applied' ? 'text-green-600' : 'text-blue-600'}`}>{entry.type}</td>
-                  <td className="px-3 py-2 text-slate-500">{entry.ruleId || '-'}</td>
-                  <td className="px-3 py-2 text-slate-500">{entry.row || '-'}</td>
-                  <td className="px-3 py-2 text-slate-800 break-words">{entry.message}</td>
-                </tr>
-              ))}
+              {log.map((entry, index) => {
+                const timeString = entry.timestamp ? entry.timestamp.substring(11, 23) : new Date().toISOString().substring(11, 23);
+                return (
+                  <tr key={index} className={`hover:bg-slate-50 ${entry.type === 'Error' ? 'bg-red-50/20' : entry.type === 'Warning' ? 'bg-orange-50/20' : ''}`}>
+                    <td className="px-3 py-2 text-slate-400 text-xs whitespace-nowrap">{timeString}</td>
+                    <td className={`px-3 py-2 font-medium ${entry.type === 'Error' ? 'text-red-600' : entry.type === 'Warning' ? 'text-orange-600' : entry.type === 'Fix' ? 'text-amber-600' : entry.type === 'Applied' ? 'text-green-600' : 'text-blue-600'}`}>{entry.type}</td>
+                    <td className="px-3 py-2 text-slate-500">{entry.ruleId || '-'}</td>
+                    <td className="px-3 py-2 text-slate-500">{entry.row || '-'}</td>
+                    <td className="px-3 py-2 text-slate-800 break-words">{entry.message}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

@@ -68,7 +68,14 @@ export function StatusBar() {
         <button onClick={handleExportPCF} disabled={!isDataLoaded} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded disabled:opacity-50">
           Export PCF ↓
         </button>
-        <button disabled={!isDataLoaded} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded disabled:opacity-50 opacity-50 cursor-not-allowed" title="Not implemented in this UI">
+        <button
+          onClick={() => {
+             dispatch({ type: "ADD_LOG", payload: { type: "Info", message: "Validator logic executed (mock)." }});
+             alert("Validator executed (mock).");
+          }}
+          disabled={!isDataLoaded}
+          className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded disabled:opacity-50"
+        >
           Run Validator ▶
         </button>
       </div>

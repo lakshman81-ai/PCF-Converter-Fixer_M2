@@ -1,19 +1,18 @@
 import React, { useRef } from 'react';
 import { useAppContext } from '../../store/AppContext';
-import { parseExcelOrCSV } from '../../utils/ImportExport';
+import { parseExcelOrCSV, parsePCF } from '../../utils/ImportExport';
 
 export function Header() {
   const { state, dispatch } = useAppContext();
-  const fileInputRef = useRef(null);
+  const excelInputRef = useRef(null);
+  const pcfInputRef = useRef(null);
 
-  const handleImportClick = () => {
-    if (fileInputRef.current) fileInputRef.current.click();
-  };
+  const handleExcelClick = () => { if (excelInputRef.current) excelInputRef.current.click(); };
+  const handlePcfClick = () => { if (pcfInputRef.current) pcfInputRef.current.click(); };
 
-  const handleFileChange = async (e) => {
+  const handleExcelChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     try {
       const parsedData = await parseExcelOrCSV(file, state.config);
       dispatch({ type: "SET_DATA_TABLE", payload: parsedData });
@@ -22,7 +21,20 @@ export function Header() {
       dispatch({ type: "ADD_LOG", payload: { type: "Error", message: `Failed to import file: ${err.message}` }});
       alert(`Error importing file: ${err.message}`);
     }
+    e.target.value = null;
+  };
 
+  const handlePcfChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const parsedData = await parsePCF(file, state.config);
+      dispatch({ type: "SET_DATA_TABLE", payload: parsedData });
+      dispatch({ type: "ADD_LOG", payload: { type: "Info", message: `Successfully imported ${parsedData.length} rows from ${file.name}` }});
+    } catch (err) {
+      dispatch({ type: "ADD_LOG", payload: { type: "Error", message: `Failed to import file: ${err.message}` }});
+      alert(`Error importing file: ${err.message}`);
+    }
     e.target.value = null;
   };
 
@@ -35,13 +47,20 @@ export function Header() {
           </h1>
           <nav className="flex space-x-2">
             <button
-              className="px-3 py-1.5 text-sm font-medium rounded hover:bg-slate-800 transition-colors flex items-center opacity-50 cursor-not-allowed"
-              title="PCF parser not implemented in this mock"
+              onClick={handlePcfClick}
+              className="px-3 py-1.5 text-sm font-medium rounded hover:bg-slate-800 transition-colors flex items-center"
             >
               Import PCF ▼
             </button>
+            <input
+              type="file"
+              accept=".pcf"
+              ref={pcfInputRef}
+              onChange={handlePcfChange}
+              style={{ display: 'none' }}
+            />
             <button
-              onClick={handleImportClick}
+              onClick={handleExcelClick}
               className="px-3 py-1.5 text-sm font-medium rounded hover:bg-slate-800 transition-colors flex items-center"
             >
               Import Excel/CSV ▼
@@ -49,8 +68,8 @@ export function Header() {
             <input
               type="file"
               accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-              ref={fileInputRef}
-              onChange={handleFileChange}
+              ref={excelInputRef}
+              onChange={handleExcelChange}
               style={{ display: 'none' }}
             />
           </nav>
