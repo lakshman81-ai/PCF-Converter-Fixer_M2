@@ -33,7 +33,7 @@ export function DataTableTab() {
     const colors = tierColors[row.fixingActionTier] || tierColors[3];
 
     return (
-      <div className={`${colors.bg} ${colors.text} border-l-4 ${colors.border} p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap rounded-r shadow-sm max-w-sm`}>
+      <div className={`${colors.bg} ${colors.text} border-l-4 ${colors.border} p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap rounded-r shadow-sm min-w-[280px]`}>
         <span className={`inline-block ${colors.border.replace('border-', 'bg-')} text-white px-1.5 py-0.5 rounded text-[10px] font-bold mb-1 mr-2`}>
           {colors.label}
         </span>
@@ -44,82 +44,107 @@ export function DataTableTab() {
     );
   };
 
+  const fmtCoord = (c) => c ? `${c.x?.toFixed(1)}, ${c.y?.toFixed(1)}, ${c.z?.toFixed(1)}` : '—';
+  const getCellClass = (row, field) => {
+    if (row._modified && row._modified[field]) return 'bg-cyan-50 text-cyan-800 font-semibold';
+    return 'text-slate-600';
+  };
+
   return (
-    <div className="overflow-auto max-h-[calc(100vh-12rem)] border rounded shadow-sm bg-white">
-      <table className="min-w-full divide-y divide-slate-200">
-        <thead className="bg-slate-50 sticky top-0 shadow-sm z-10">
+    <div className="overflow-auto h-[calc(100vh-14rem)] border rounded shadow-sm bg-white relative">
+      <table className="min-w-max divide-y divide-slate-200 text-sm">
+        <thead className="bg-slate-100 sticky top-0 z-20 shadow-sm whitespace-nowrap">
           <tr>
-            {/* Identity */}
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap sticky left-0 bg-slate-100 border-r">Row</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap sticky left-[60px] bg-slate-100 border-r">Type</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">Seq No</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">Text</th>
+            {/* Identity & Reference */}
+            <th className="px-3 py-2 text-left font-semibold text-slate-700 border-r border-slate-300 sticky left-0 z-30 bg-slate-100"># Row</th>
+            <th className="px-3 py-2 text-left font-semibold text-slate-700 border-r border-slate-300 sticky left-[60px] z-30 bg-slate-100">CSV SEQ NO</th>
+            <th className="px-3 py-2 text-left font-semibold text-slate-700 border-r border-slate-300 sticky left-[160px] z-30 bg-slate-100">Type</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200">TEXT (MSG)</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200">PIPELINE-REF</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200">REF NO.</th>
 
             {/* Geometry */}
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap border-l">Bore</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">EP1 (x, y, z)</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">EP2 (x, y, z)</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">CP (x, y, z)</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">BP (x, y, z)</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-blue-50/50">BORE</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-blue-50/50">EP1</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-blue-50/50">EP2</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-blue-50/50">CP</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-blue-50/50">BP</th>
 
-            {/* Component specific */}
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap border-l">SKEY</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">Support Coor</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">Support Name</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">Support GUID</th>
+            {/* Fitting & Support */}
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200">SKEY</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200">SUPPORT COOR</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200">SUPPORT GUID</th>
 
-            {/* Attributes */}
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap border-l">CA Attributes</th>
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">Ref No</th>
+            {/* Smart Fix */}
+            <th className="px-3 py-2 text-left font-semibold text-slate-700 border-r border-slate-300 bg-amber-50">Fixing Action</th>
 
-            {/* Actions */}
-            <th className="px-3 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap border-l min-w-[320px] sticky right-0 bg-slate-50">Smart Fix Preview</th>
+            {/* Calculated Deltas & Lens */}
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-slate-50">LEN1</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-slate-50">AXIS1</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-slate-50">LEN2</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-slate-50">AXIS2</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-slate-50">LEN3</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-slate-50">AXIS3</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-slate-50">BRLEN</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-slate-50">DELTA X</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-slate-50">DELTA Y</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200 bg-slate-50">DELTA Z</th>
+
+            {/* Derived & Pointers */}
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200">DIAMETER</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200">WALL_THICK</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200">BEND_PTR</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200">RIGID_PTR</th>
+            <th className="px-3 py-2 text-left font-medium text-slate-500 border-r border-slate-200">INT_PTR</th>
+
+            {/* CAs */}
+            {[1,2,3,4,5,6,7,8,9,10,97,98].map(n => (
+                <th key={`ca${n}`} className="px-3 py-2 text-left font-medium text-slate-400 border-r border-slate-200">CA{n}</th>
+            ))}
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-slate-200">
           {dataTable.map((row) => (
-            <tr key={row._rowIndex} className={`group hover:bg-slate-50 transition-colors ${row._modified ? 'bg-cyan-50/30' : ''}`}>
-              <td className="px-3 py-2 whitespace-nowrap text-sm text-slate-500 sticky left-0 bg-white border-r group-hover:bg-slate-50">{row._rowIndex}</td>
-              <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-slate-900 sticky left-[60px] bg-white border-r group-hover:bg-slate-50">{row.type}</td>
-              <td className="px-3 py-2 whitespace-nowrap text-sm text-slate-500">{row.csvSeqNo || '—'}</td>
-              <td className="px-3 py-2 whitespace-nowrap text-sm text-slate-500 max-w-[200px] truncate" title={row.text}>{row.text || '—'}</td>
+            <tr key={row._rowIndex} className="hover:bg-slate-50 transition-colors whitespace-nowrap">
+              <td className="px-3 py-2 text-slate-500 border-r border-slate-200 sticky left-0 z-10 bg-white font-mono">{row._rowIndex}</td>
+              <td className={`px-3 py-2 border-r border-slate-200 sticky left-[60px] z-10 bg-white font-mono ${getCellClass(row, 'csvSeqNo')}`}>{row.csvSeqNo || '—'}</td>
+              <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-300 sticky left-[160px] z-10 bg-white">{row.type}</td>
+              <td className="px-3 py-2 text-slate-500 border-r border-slate-200 truncate max-w-[200px]" title={row.text}>{row.text || '—'}</td>
+              <td className="px-3 py-2 text-slate-500 border-r border-slate-200">{row.pipelineRef || '—'}</td>
+              <td className={`px-3 py-2 border-r border-slate-200 ${getCellClass(row, 'refNo')}`}>{row.refNo || '—'}</td>
 
-              <td className="px-3 py-2 whitespace-nowrap text-sm text-slate-500 border-l">{row.bore}</td>
-              <td className={`px-3 py-2 whitespace-nowrap text-sm font-mono text-slate-600 ${row._modified?.ep1 ? 'text-cyan-700 font-semibold' : ''}`}>
-                {row.ep1 ? `${row.ep1.x.toFixed(1)}, ${row.ep1.y.toFixed(1)}, ${row.ep1.z.toFixed(1)}` : '—'}
-              </td>
-              <td className={`px-3 py-2 whitespace-nowrap text-sm font-mono text-slate-600 ${row._modified?.ep2 ? 'text-cyan-700 font-semibold' : ''}`}>
-                {row.ep2 ? `${row.ep2.x.toFixed(1)}, ${row.ep2.y.toFixed(1)}, ${row.ep2.z.toFixed(1)}` : '—'}
-              </td>
-              <td className={`px-3 py-2 whitespace-nowrap text-sm font-mono text-slate-600 ${row._modified?.cp ? 'text-cyan-700 font-semibold' : ''}`}>
-                {row.cp ? `${row.cp.x.toFixed(1)}, ${row.cp.y.toFixed(1)}, ${row.cp.z.toFixed(1)}` : '—'}
-              </td>
-              <td className={`px-3 py-2 whitespace-nowrap text-sm font-mono text-slate-600 ${row._modified?.bp ? 'text-cyan-700 font-semibold' : ''}`}>
-                {row.bp ? `${row.bp.x.toFixed(1)}, ${row.bp.y.toFixed(1)}, ${row.bp.z.toFixed(1)}` : '—'}
-              </td>
+              <td className={`px-3 py-2 font-mono border-r border-slate-200 ${getCellClass(row, 'bore')}`}>{row.bore || '—'}</td>
+              <td className={`px-3 py-2 font-mono border-r border-slate-200 ${getCellClass(row, 'ep1')}`}>{fmtCoord(row.ep1)}</td>
+              <td className={`px-3 py-2 font-mono border-r border-slate-200 ${getCellClass(row, 'ep2')}`}>{fmtCoord(row.ep2)}</td>
+              <td className={`px-3 py-2 font-mono border-r border-slate-200 ${getCellClass(row, 'cp')}`}>{fmtCoord(row.cp)}</td>
+              <td className={`px-3 py-2 font-mono border-r border-slate-200 ${getCellClass(row, 'bp')}`}>{fmtCoord(row.bp)}</td>
 
-              <td className="px-3 py-2 whitespace-nowrap text-sm text-slate-500 border-l">{row.skey || '—'}</td>
-              <td className="px-3 py-2 whitespace-nowrap text-sm font-mono text-slate-600">
-                {row.supportCoor ? `${row.supportCoor.x.toFixed(1)}, ${row.supportCoor.y.toFixed(1)}, ${row.supportCoor.z.toFixed(1)}` : '—'}
-              </td>
-              <td className="px-3 py-2 whitespace-nowrap text-sm text-slate-500">{row.supportName || '—'}</td>
-              <td className="px-3 py-2 whitespace-nowrap text-sm text-slate-500">{row.supportGuid || '—'}</td>
+              <td className="px-3 py-2 font-mono text-slate-600 border-r border-slate-200">{row.skey || '—'}</td>
+              <td className="px-3 py-2 font-mono text-slate-600 border-r border-slate-200">{fmtCoord(row.supportCoor)}</td>
+              <td className="px-3 py-2 font-mono text-slate-600 border-r border-slate-200">{row.supportGuid || '—'}</td>
 
-              <td className="px-3 py-2 whitespace-nowrap text-sm text-slate-500 border-l">
-                <div className="flex flex-wrap gap-1 max-w-[250px] overflow-hidden">
-                  {Object.entries(row.ca || {}).filter(([_,v])=>v).map(([k,v]) => (
-                    <span key={k} className="inline-block bg-slate-100 border border-slate-200 px-1 py-0.5 rounded text-[10px] text-slate-600">
-                      <b>CA{k}:</b> {v}
-                    </span>
-                  ))}
-                  {!row.ca || Object.keys(row.ca).length === 0 ? '—' : ''}
-                </div>
-              </td>
-              <td className="px-3 py-2 whitespace-nowrap text-sm font-mono text-slate-500">{row.refNo || '—'}</td>
+              <td className="px-3 py-2 border-r border-slate-200 align-top">{renderFixingAction(row)}</td>
 
-              <td className="px-3 py-2 align-top border-l bg-white sticky right-0 group-hover:bg-slate-50">
-                {renderFixingAction(row)}
-              </td>
+              <td className="px-3 py-2 font-mono text-cyan-700 border-r border-slate-200 bg-slate-50/50">{row.len1?.toFixed(1) || '—'}</td>
+              <td className="px-3 py-2 text-cyan-700 border-r border-slate-200 bg-slate-50/50">{row.axis1 || '—'}</td>
+              <td className="px-3 py-2 font-mono text-cyan-700 border-r border-slate-200 bg-slate-50/50">{row.len2?.toFixed(1) || '—'}</td>
+              <td className="px-3 py-2 text-cyan-700 border-r border-slate-200 bg-slate-50/50">{row.axis2 || '—'}</td>
+              <td className="px-3 py-2 font-mono text-cyan-700 border-r border-slate-200 bg-slate-50/50">{row.len3?.toFixed(1) || '—'}</td>
+              <td className="px-3 py-2 text-cyan-700 border-r border-slate-200 bg-slate-50/50">{row.axis3 || '—'}</td>
+              <td className="px-3 py-2 font-mono text-cyan-700 border-r border-slate-200 bg-slate-50/50">{row.brlen?.toFixed(1) || '—'}</td>
+              <td className="px-3 py-2 font-mono text-cyan-700 border-r border-slate-200 bg-slate-50/50">{row.deltaX?.toFixed(1) || '—'}</td>
+              <td className="px-3 py-2 font-mono text-cyan-700 border-r border-slate-200 bg-slate-50/50">{row.deltaY?.toFixed(1) || '—'}</td>
+              <td className="px-3 py-2 font-mono text-cyan-700 border-r border-slate-200 bg-slate-50/50">{row.deltaZ?.toFixed(1) || '—'}</td>
+
+              <td className="px-3 py-2 text-slate-500 border-r border-slate-200">{row.diameter || '—'}</td>
+              <td className="px-3 py-2 text-slate-500 border-r border-slate-200">{row.wallThick || '—'}</td>
+              <td className="px-3 py-2 font-mono text-slate-400 border-r border-slate-200">{row.bendPtr || '—'}</td>
+              <td className="px-3 py-2 font-mono text-slate-400 border-r border-slate-200">{row.rigidPtr || '—'}</td>
+              <td className="px-3 py-2 font-mono text-slate-400 border-r border-slate-200">{row.intPtr || '—'}</td>
+
+              {[1,2,3,4,5,6,7,8,9,10,97,98].map(n => (
+                  <td key={`ca${n}`} className="px-3 py-2 text-slate-500 border-r border-slate-200">{row.ca?.[n] || '—'}</td>
+              ))}
             </tr>
           ))}
         </tbody>
