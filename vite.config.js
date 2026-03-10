@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/PCF-Converter-Fixer_M2/',
+  base: './',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
