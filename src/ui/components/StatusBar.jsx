@@ -98,11 +98,14 @@ export function StatusBar() {
   };
 
   const isDataLoaded = state.dataTable.length > 0;
-  const isPreviewing = state.smartFix.status === "previewing";
   const isRunning = state.smartFix.status === "running";
   const isApplying = state.smartFix.status === "applying";
   const passNum = state.smartFix.pass || 1;
   const isSecondPassReady = state.smartFix.status === "applied" && state.config.pteMode?.autoMultiPassMode;
+
+  // Apply Fixes should be enabled if any row is approved and we're not currently applying
+  const hasApprovedFixes = state.dataTable.some(r => r._fixApproved === true);
+  const canApplyFixes = hasApprovedFixes && !isApplying;
 
   const handleSecondPass = () => {
     dispatch({ type: "SET_SMART_FIX_STATUS", status: "running" });
@@ -269,7 +272,7 @@ export function StatusBar() {
 
         <button
           onClick={handleApplyFixes}
-          disabled={!isPreviewing || isApplying}
+          disabled={!canApplyFixes}
           className="px-4 py-1.5 bg-green-600 hover:bg-green-500 rounded font-medium disabled:opacity-50 transition-colors mr-2"
         >
           {isApplying ? "Applying..." : "Apply Fixes ✓"}

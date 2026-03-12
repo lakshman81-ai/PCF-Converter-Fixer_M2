@@ -86,16 +86,31 @@ export function DataTableTab() {
 
   const fixingActionStats = React.useMemo(() => {
     let approved = 0, rejected = 0, pending = 0;
+    let errPass1 = 0, warnPass1 = 0;
+    let errPass2 = 0, warnPass2 = 0;
+
     if (state.dataTable) {
         state.dataTable.forEach(r => {
           if (r.fixingAction) {
             if (r._fixApproved === true) approved++;
             else if (r._fixApproved === false) rejected++;
             else pending++;
+
+            const isP2 = r._passApplied === 2 || r.fixingAction.includes('[2nd Pass]');
+            const isErr = r.fixingActionTier === 4 || r.fixingAction.includes('ERROR');
+            const isWarn = r.fixingActionTier === 3 || r.fixingAction.includes('WARNING');
+
+            if (isP2) {
+                if (isErr) errPass2++;
+                if (isWarn) warnPass2++;
+            } else {
+                if (isErr) errPass1++;
+                if (isWarn) warnPass1++;
+            }
           }
         });
     }
-    return { approved, rejected, pending };
+    return { approved, rejected, pending, errPass1, warnPass1, errPass2, warnPass2 };
   }, [state.dataTable]);
 
   if (!dataTable || dataTable.length === 0) {
@@ -186,14 +201,28 @@ export function DataTableTab() {
 
   return (
     <>
-      <div className="mb-2 flex justify-between items-end">
-        <div className="text-sm font-medium text-slate-600 bg-slate-100 px-3 py-1.5 rounded border border-slate-200">
-          Fixing Action:
-          <span className="text-green-600 ml-2 font-bold">Approved({fixingActionStats.approved})</span>,
-          <span className="text-slate-500 ml-2 font-bold">Rejected({fixingActionStats.rejected})</span>,
-          <span className="text-amber-600 ml-2 font-bold">Pending({fixingActionStats.pending})</span>
+      <div className="mb-2 flex flex-col xl:flex-row justify-between xl:items-end gap-2">
+        <div className="flex flex-wrap gap-2 text-sm font-medium">
+            <div className="text-slate-600 bg-slate-100 px-3 py-1.5 rounded border border-slate-200 shadow-sm flex items-center">
+                Validation [Pass 1]:
+                <span className="text-red-600 ml-2 font-bold">Errors({fixingActionStats.errPass1})</span>,
+                <span className="text-orange-500 ml-2 font-bold">Warnings({fixingActionStats.warnPass1})</span>
+            </div>
+            {(fixingActionStats.errPass2 > 0 || fixingActionStats.warnPass2 > 0) && (
+                <div className="text-slate-600 bg-slate-100 px-3 py-1.5 rounded border border-slate-200 shadow-sm flex items-center">
+                    Validation [Pass 2]:
+                    <span className="text-red-600 ml-2 font-bold">Errors({fixingActionStats.errPass2})</span>,
+                    <span className="text-orange-500 ml-2 font-bold">Warnings({fixingActionStats.warnPass2})</span>
+                </div>
+            )}
+            <div className="text-slate-600 bg-indigo-50 px-3 py-1.5 rounded border border-indigo-200 shadow-sm flex items-center">
+                Fixing Action:
+                <span className="text-green-600 ml-2 font-bold">Approved({fixingActionStats.approved})</span>,
+                <span className="text-slate-500 ml-2 font-bold">Rejected({fixingActionStats.rejected})</span>,
+                <span className="text-amber-600 ml-2 font-bold">Pending({fixingActionStats.pending})</span>
+            </div>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap space-x-2">
             <button onClick={handleValidateSyntax} className="px-3 py-1.5 bg-teal-50 text-teal-700 hover:bg-teal-100 rounded text-sm font-medium border border-teal-200 shadow-sm transition-colors">
                 Validate Data Table Syntax
             </button>

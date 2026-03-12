@@ -49,16 +49,30 @@ const InstancedPipes = () => {
     meshRef.current.instanceMatrix.needsUpdate = true;
   }, [pipes, dummy]);
 
+  const [selectedId, setSelectedId] = useState(null);
+  const [selectedGeom, setSelectedGeom] = useState(null);
+
   const handlePointerDown = (e) => {
       e.stopPropagation();
       const instanceId = e.instanceId;
       if (instanceId !== undefined && pipes[instanceId]) {
           const pipe = pipes[instanceId];
+          setSelectedId(instanceId);
           if (pipe.ep1 && pipe.ep2) {
               const midX = (pipe.ep1.x + pipe.ep2.x) / 2;
               const midY = (pipe.ep1.y + pipe.ep2.y) / 2;
               const midZ = (pipe.ep1.z + pipe.ep2.z) / 2;
-              window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x: midX, y: midY, z: midZ, id: pipe.text } }));
+
+              const vecA = new THREE.Vector3(pipe.ep1.x, pipe.ep1.y, pipe.ep1.z);
+              const vecB = new THREE.Vector3(pipe.ep2.x, pipe.ep2.y, pipe.ep2.z);
+              const distance = vecA.distanceTo(vecB);
+              const radius = pipe.bore ? pipe.bore / 2 : 5;
+              const direction = vecB.clone().sub(vecA).normalize();
+              const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+
+              setSelectedGeom({ pos: [midX, midY, midZ], dist: distance, radius, quat: quaternion });
+
+              window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x: midX, y: midY, z: midZ, dist: distance } }));
           }
       }
   };
@@ -66,10 +80,20 @@ const InstancedPipes = () => {
   if (pipes.length === 0) return null;
 
   return (
-    <instancedMesh ref={meshRef} args={[null, null, pipes.length]} onPointerDown={handlePointerDown}>
-      <cylinderGeometry args={[1, 1, 1, 16]} />
-      <meshStandardMaterial color="#3b82f6" />
-    </instancedMesh>
+    <group>
+        <instancedMesh ref={meshRef} args={[null, null, pipes.length]} onPointerDown={handlePointerDown}>
+          <cylinderGeometry args={[1, 1, 1, 16]} />
+          <meshStandardMaterial color="#3b82f6" />
+        </instancedMesh>
+
+        {/* Highlight Overlay */}
+        {selectedGeom && (
+             <mesh position={selectedGeom.pos} quaternion={selectedGeom.quat}>
+                 <cylinderGeometry args={[selectedGeom.radius * 1.5, selectedGeom.radius * 1.5, selectedGeom.dist, 16]} />
+                 <meshBasicMaterial color="#eab308" wireframe={true} />
+             </mesh>
+        )}
+    </group>
   );
 };
 
@@ -172,8 +196,11 @@ const ControlsAutoCenter = () => {
     useEffect(() => {
         const handleFocus = (e) => {
             if (!controlsRef.current) return;
-            const { x, y, z } = e.detail;
+            const { x, y, z, dist } = e.detail;
             controlsRef.current.target.set(x, y, z);
+            // Move camera closer to object based on its length/dist
+            const zoomDist = Math.max(dist * 2, 500);
+            controlsRef.current.object.position.set(x + zoomDist, y + zoomDist, z + zoomDist);
             controlsRef.current.update();
         };
 
