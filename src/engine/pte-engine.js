@@ -13,28 +13,33 @@ export function runPTEEngine(dataTable, config, logger) {
         else if (pteMode.lineKeyColumn === 'ca97') keyVal = row.ca?.[97];
         else if (pteMode.lineKeyColumn === 'ca98') keyVal = row.ca?.[98];
 
+        const enrichedRow = { ...row };
+
         if (keyVal && typeof keyVal === 'string' && keyVal.trim() !== '') {
-            row._lineKey = keyVal.trim();
-            row._pteMode = 'B(a)'; // Sequential + Line_Key
+            enrichedRow._lineKey = keyVal.trim();
+            enrichedRow._pteMode = 'B(a)'; // Sequential + Line_Key
         } else {
-            row._lineKey = null;
-            row._pteMode = 'B(b)'; // Sequential + No Line_Key
+            enrichedRow._lineKey = null;
+            enrichedRow._pteMode = 'B(b)'; // Sequential + No Line_Key
         }
 
         if (!pteMode.lineKeyMode) {
-             row._lineKey = null;
-             row._pteMode = 'B(b)';
+             enrichedRow._lineKey = null;
+             enrichedRow._pteMode = 'B(b)';
         }
 
-        return row;
+        return enrichedRow;
     };
 
-    let processedTable = dataTable.map(enrichRowWithLineKey);
+    // Need to protect the incoming dataTable by making a shallow copy before .map
+    // to prevent modifying the frozen properties passed by React.
+    let processedTable = [...dataTable].map(enrichRowWithLineKey);
 
     if (!pteMode.sequentialMode) {
          processedTable = processedTable.map(row => {
-             row._pteMode = row._lineKey ? 'D(a)' : 'D(b)';
-             return row;
+             const updatedRow = { ...row };
+             updatedRow._pteMode = updatedRow._lineKey ? 'D(a)' : 'D(b)';
+             return updatedRow;
          });
     }
 

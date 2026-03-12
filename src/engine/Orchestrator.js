@@ -22,7 +22,7 @@ export function runSmartFix(dataTable, config, logger) {
   // Actually, we'll patch log.push in rules to ensure stage.
   const oldPush = logger.push;
   logger.push = (entry) => {
-      oldPush({ stage: "FIXING", ...entry });
+      oldPush({ stage: "FIXING", pass: currentPass, ...entry });
   };
 
   const { chains, orphans } = walkAllChains(graph, config, logger.getLog());

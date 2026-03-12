@@ -7,6 +7,12 @@ export function ConfigTab() {
 
   const handleSave = () => {
     dispatch({ type: "SET_CONFIG", payload: localConfig });
+
+    // Explicitly persist enabled validation checks
+    if (localConfig.enabledChecks) {
+        localStorage.setItem('enabledValidationChecks', JSON.stringify(localConfig.enabledChecks));
+    }
+
     // Push a log for transparency
     dispatch({ type: "ADD_LOG", payload: { type: "Info", message: "Configuration updated successfully." }});
   };
@@ -24,13 +30,40 @@ export function ConfigTab() {
   return (
     <div className="p-6 h-[calc(100vh-12rem)] overflow-auto bg-white rounded shadow-sm border border-slate-200">
       <div className="flex justify-between items-center mb-6 border-b pb-4">
-        <h2 className="text-xl font-bold text-slate-800">Smart Fixer Configuration</h2>
+        <h2 className="text-xl font-bold text-slate-800">Engine Configuration</h2>
         <button
           onClick={handleSave}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow-sm transition"
         >
           Save Configuration
         </button>
+      </div>
+
+      {/* V1-V20 Checks List */}
+      <div className="bg-white p-4 rounded border border-slate-200 shadow-sm mb-6">
+        <h3 className="font-semibold text-slate-700 mb-3 border-b pb-2">Validation Rules Checklist (V1-V20)</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {[...Array(20)].map((_, i) => {
+                const ruleId = `V${i+1}`;
+                const checked = localConfig.enabledChecks ? localConfig.enabledChecks[ruleId] !== false : true;
+                return (
+                    <div key={ruleId} className="flex items-center space-x-2">
+                        <input
+                            type="checkbox"
+                            id={`chk-${ruleId}`}
+                            className="w-4 h-4 text-blue-600 rounded border-gray-300"
+                            checked={checked}
+                            onChange={(e) => {
+                                const newChecks = { ...(localConfig.enabledChecks || {}) };
+                                newChecks[ruleId] = e.target.checked;
+                                setLocalConfig(prev => ({ ...prev, enabledChecks: newChecks }));
+                            }}
+                        />
+                        <label htmlFor={`chk-${ruleId}`} className="text-sm font-medium text-slate-700 cursor-pointer">{ruleId}</label>
+                    </div>
+                );
+            })}
+        </div>
       </div>
 
       <div className="bg-blue-50 p-4 rounded border border-blue-200 shadow-sm mb-6">

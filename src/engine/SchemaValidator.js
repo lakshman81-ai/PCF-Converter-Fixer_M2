@@ -39,7 +39,10 @@ export function validatePcfData(dataTable, logger) {
       validatedTable.push(result.data);
     } else {
       errorCount++;
-      const issues = result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+      let issues = 'Unknown Zod Error';
+      if (result.error && result.error.issues) {
+          issues = result.error.issues.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+      }
       logger.push({
         stage: "TRANSLATION",
         type: "Error",

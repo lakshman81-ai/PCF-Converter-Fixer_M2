@@ -24,6 +24,47 @@ export function DataTableTab() {
       dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
   };
 
+  const handleIgnoreAllWarnings = () => {
+      const updatedTable = state.dataTable.map(r => {
+          if (r.fixingAction && r.fixingActionRuleId && r.fixingAction.includes('WARNING')) {
+              return { ...r, _fixIgnored: true };
+          }
+          return r;
+      });
+      dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+  };
+
+  const handleCalculateMissingGeometry = () => {
+       // This handles very basic recalculations
+       const updatedTable = state.dataTable.map(row => {
+            const r = { ...row };
+            if (!r.bore && r.type === "PIPE" && r.ep1 && r.ep2) {
+                // Approximate 100 bore as fallback
+                r.bore = 100;
+                r._modified = r._modified || {};
+                r._modified.bore = "Calculated Geometry";
+            }
+            if (r.type === "TEE" && !r.cp && r.ep1 && r.ep2) {
+                r.cp = {
+                    x: (r.ep1.x + r.ep2.x) / 2,
+                    y: (r.ep1.y + r.ep2.y) / 2,
+                    z: (r.ep1.z + r.ep2.z) / 2
+                };
+                r._modified = r._modified || {};
+                r._modified.cp = "Calculated Geometry";
+            }
+            return r;
+       });
+       dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+  };
+
+  const handleValidateSyntax = () => {
+      // Trigger the engine's validator to run manually
+      // We need to simulate the event bus trigger that StatusBar uses
+      const event = new CustomEvent('RUN_VALIDATOR_MANUAL');
+      window.dispatchEvent(event);
+  };
+
   const fixingActionStats = React.useMemo(() => {
     let approved = 0, rejected = 0, pending = 0;
     if (state.dataTable) {
@@ -64,26 +105,42 @@ export function DataTableTab() {
       4: { bg: "bg-red-50", text: "text-red-800", border: "border-red-500", label: "ERROR T4" },
     };
 
-    // Override colors if approved/rejected
     let colors = tierColors[row.fixingActionTier] || tierColors[3];
-    if (row._fixApproved === true) {
-      colors = { bg: "bg-green-100", text: "text-green-900", border: "border-green-600", label: "APPROVED" };
-    } else if (row._fixApproved === false) {
-      colors = { bg: "bg-slate-200", text: "text-slate-500", border: "border-slate-400", label: "REJECTED" };
+    if (row._passApplied > 0) {
+      colors = { bg: "bg-green-100", text: "text-green-900", border: "border-green-600", label: "FIX APPLIED" };
     }
+
+    // Attempt to split into validation warning and proposal/action.
+    // E.g., Validator puts "[V2] ERROR...", SmartFixer appends action.
+    let validationMsg = row.fixingActionOriginalError || "";
+    let actionMsg = row.fixingAction;
+
+    if (!row.fixingActionOriginalError && (row.fixingAction.includes('ERROR') || row.fixingAction.includes('WARNING'))) {
+         // It's primarily a validation message or it hasn't been split yet
+         if (row.fixingAction.includes('—')) {
+             const parts = row.fixingAction.split('—');
+             validationMsg = parts[0].trim();
+             actionMsg = parts.slice(1).join('—').trim();
+         } else {
+             validationMsg = row.fixingAction;
+             actionMsg = "";
+         }
+    }
+
+    const passPrefix = row._passApplied === 2 ? "[2nd Pass]" : "[1st Pass]";
 
     return (
       <div className={`${colors.bg} ${colors.text} border-l-4 ${colors.border} p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap rounded-r shadow-sm min-w-[280px]`}>
-        <span className={`inline-block ${colors.border.replace('border-', 'bg-')} text-white px-1.5 py-0.5 rounded text-[10px] font-bold mb-1 mr-2`}>
-          {colors.label}
-        </span>
-        <span className="font-semibold">{row.fixingActionRuleId}</span>
-        <br />
-        <span className={row._fixApproved === false ? "line-through opacity-70" : ""}>{row.fixingAction}</span>
-        <div className="mt-2 flex space-x-2">
-            <button onClick={() => handleApprove(row._rowIndex, true)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === true ? 'bg-green-600 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>✓ Approve</button>
-            <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === false ? 'bg-slate-500 text-white' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}>✗ Reject</button>
+        <div className="font-semibold mb-1">
+             <span className="text-slate-600 mr-1">{passPrefix}</span>
+             {validationMsg}
         </div>
+        {actionMsg && (
+            <div className={`mt-1 pl-2 border-l-2 ${row._passApplied > 0 ? 'border-green-400 text-green-800' : 'border-amber-400 text-amber-800'}`}>
+                 <span className="font-bold mr-1">{row._passApplied > 0 ? "[Action Taken]" : "[Proposal]"}</span>
+                 {actionMsg}
+            </div>
+        )}
       </div>
     );
   };
@@ -109,9 +166,20 @@ export function DataTableTab() {
           <span className="text-slate-500 ml-2 font-bold">Rejected({fixingActionStats.rejected})</span>,
           <span className="text-amber-600 ml-2 font-bold">Pending({fixingActionStats.pending})</span>
         </div>
-        <button onClick={handleAutoApproveAll} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-sm font-medium border border-indigo-200 shadow-sm transition-colors">
-            Auto Approve First Pass (&lt; 25mm)
-        </button>
+        <div className="flex space-x-2">
+            <button onClick={handleValidateSyntax} className="px-3 py-1.5 bg-teal-50 text-teal-700 hover:bg-teal-100 rounded text-sm font-medium border border-teal-200 shadow-sm transition-colors">
+                Validate Data Table Syntax
+            </button>
+            <button onClick={handleCalculateMissingGeometry} className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-sm font-medium border border-blue-200 shadow-sm transition-colors">
+                Calculate Missing Geometry
+            </button>
+            <button onClick={handleIgnoreAllWarnings} className="px-3 py-1.5 bg-slate-50 text-slate-700 hover:bg-slate-100 rounded text-sm font-medium border border-slate-200 shadow-sm transition-colors">
+                Ignore All Warnings
+            </button>
+            <button onClick={handleAutoApproveAll} className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded text-sm font-medium border border-indigo-200 shadow-sm transition-colors">
+                Auto Approve First Pass (&lt; 25mm)
+            </button>
+        </div>
       </div>
   <div className="overflow-auto h-[calc(100vh-14rem)] border rounded shadow-sm bg-white relative">
       <table className="min-w-max divide-y divide-slate-200 text-sm">

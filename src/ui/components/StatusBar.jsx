@@ -18,6 +18,35 @@ export function StatusBar() {
   const setZustandProposals = useStore(state => state.setProposals);
 
   React.useEffect(() => {
+    const handleManualValidation = () => {
+        const logger = createLogger();
+        const results = runValidationChecklist(state.dataTable, state.config, logger);
+        logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
+
+        let updatedTable = [...state.dataTable];
+        logger.getLog().forEach(entry => {
+          if (entry.row && entry.tier) {
+            const row = updatedTable.find(r => r._rowIndex === entry.row);
+            if (row) {
+               // Preserve existing proposals if any, otherwise set validation message
+               if (!row.fixingAction || row.fixingAction.includes('ERROR') || row.fixingAction.includes('WARNING')) {
+                  row.fixingAction = entry.message;
+                  row.fixingActionTier = entry.tier;
+                  row.fixingActionRuleId = entry.ruleId;
+               }
+            }
+          }
+        });
+
+        dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+        alert(`Validation Complete: ${results.errorCount} Errors, ${results.warnCount} Warnings found.`);
+    };
+
+    window.addEventListener('RUN_VALIDATOR_MANUAL', handleManualValidation);
+    return () => window.removeEventListener('RUN_VALIDATOR_MANUAL', handleManualValidation);
+  }, [state.dataTable, state.config, dispatch]);
+
+  React.useEffect(() => {
     const handleSync = (e) => {
         const { rowIndex, status } = e.detail;
         let updatedTable = state.dataTable.map(r =>
@@ -79,7 +108,9 @@ export function StatusBar() {
     dispatch({ type: "SET_SMART_FIX_STATUS", status: "running" });
     const logger = createLogger();
     // Simulate second pass triggering by modifying state temporarily or just calling smart fix again with pass 2 context
-    const result = runSmartFix(state.dataTable, { ...state.config, currentPass: 2 }, logger);
+    // Before running we flag the table that it's pass 2
+    let pass2Table = state.dataTable.map(r => ({ ...r, _currentPass: 2 }));
+    const result = runSmartFix(pass2Table, { ...state.config, currentPass: 2 }, logger);
     logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
     dispatch({ type: "SMART_FIX_COMPLETE", payload: { ...result, pass: 2 } });
   };

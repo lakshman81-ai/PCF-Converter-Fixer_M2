@@ -47,7 +47,7 @@ export function applyFixes(dataTable, chains, config, log) {
   for (const chain of chains) {
     for (const link of chain) {
       if (!link.fixAction) continue;
-      if (link.fixAction.type === "TRIM" && link.fixAction.tier <= 2 && link.element._fixApproved === true) {
+      if (link.fixAction.type === "TRIM" && link.element._fixApproved === true) {
         const target = link.fixAction.trimTarget === "current" ? link.element : link.nextElement;
         if ((target.type || "").toUpperCase() === "PIPE") {
           trimPipe(target, link.fixAction.trimAmount, link.travelAxis, link.travelDirection, link.fixAction.trimTarget);
@@ -71,7 +71,7 @@ export function applyFixes(dataTable, chains, config, log) {
   for (const chain of chains) {
     for (const link of chain) {
       if (!link.fixAction) continue;
-      if (link.fixAction.type === "INSERT" && link.fixAction.tier <= 2 && link.element._fixApproved === true) {
+      if (link.fixAction.type === "INSERT" && link.element._fixApproved === true) {
         const fillerPipe = createFillerPipe(link, config);
         newRows.push({ insertAfterRow: link.element._rowIndex, pipe: fillerPipe });
         applied.push({ ruleId: link.fixAction.ruleId, row: link.element._rowIndex, action: "INSERT" });

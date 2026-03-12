@@ -150,8 +150,58 @@ const ProposalOverlay = ({ proposal }) => {
 // ----------------------------------------------------
 // Main Tab Component
 // ----------------------------------------------------
+const ControlsAutoCenter = () => {
+    const controlsRef = useRef();
+    const getPipes = useStore(state => state.getPipes);
+
+    // Add custom event listener for auto-center
+    useEffect(() => {
+        const handleCenter = () => {
+            const pipes = getPipes();
+            if (pipes.length === 0 || !controlsRef.current) return;
+
+            // Calculate bounding box of all pipes
+            let minX = Infinity, minY = Infinity, minZ = Infinity;
+            let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+            pipes.forEach(p => {
+                if (p.ep1) {
+                    minX = Math.min(minX, p.ep1.x); minY = Math.min(minY, p.ep1.y); minZ = Math.min(minZ, p.ep1.z);
+                    maxX = Math.max(maxX, p.ep1.x); maxY = Math.max(maxY, p.ep1.y); maxZ = Math.max(maxZ, p.ep1.z);
+                }
+                if (p.ep2) {
+                    minX = Math.min(minX, p.ep2.x); minY = Math.min(minY, p.ep2.y); minZ = Math.min(minZ, p.ep2.z);
+                    maxX = Math.max(maxX, p.ep2.x); maxY = Math.max(maxY, p.ep2.y); maxZ = Math.max(maxZ, p.ep2.z);
+                }
+            });
+
+            if (minX !== Infinity) {
+                const centerX = (minX + maxX) / 2;
+                const centerY = (minY + maxY) / 2;
+                const centerZ = (minZ + maxZ) / 2;
+
+                // Set target of OrbitControls
+                controlsRef.current.target.set(centerX, centerY, centerZ);
+                // Adjust camera position relative to center
+                const maxDim = Math.max(maxX - minX, maxY - minY, maxZ - minZ);
+                controlsRef.current.object.position.set(centerX + maxDim, centerY + maxDim, centerZ + maxDim);
+                controlsRef.current.update();
+            }
+        };
+
+        window.addEventListener('canvas-auto-center', handleCenter);
+        return () => window.removeEventListener('canvas-auto-center', handleCenter);
+    }, [getPipes]);
+
+    return <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={0.1} />;
+};
+
 export function CanvasTab() {
   const proposals = useStore(state => state.proposals);
+
+  const handleAutoCenter = () => {
+      window.dispatchEvent(new CustomEvent('canvas-auto-center'));
+  };
 
   return (
     <div className="flex flex-col h-[calc(100vh-12rem)] w-full overflow-hidden bg-slate-950 rounded-lg border border-slate-800 shadow-inner relative">
@@ -160,6 +210,17 @@ export function CanvasTab() {
       <div className="absolute top-4 left-4 z-10 pointer-events-none">
         <h2 className="text-slate-200 font-bold text-lg drop-shadow-md">3D Topology Canvas</h2>
         <p className="text-slate-400 text-xs mt-1">Right-click pan, Scroll zoom, Left-click rotate</p>
+      </div>
+
+      <div className="absolute top-4 right-4 z-10">
+        <button
+            onClick={handleAutoCenter}
+            className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded border border-slate-700 shadow flex items-center gap-2 text-sm transition-colors"
+            title="Auto Center Camera"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h6"/><path d="M3 3v6"/><path d="M21 3h-6"/><path d="M21 3v6"/><path d="M3 21h6"/><path d="M3 21v-6"/><path d="M21 21h-6"/><path d="M21 21v-6"/></svg>
+            Auto Center
+        </button>
       </div>
 
       <Canvas camera={{ position: [5000, 5000, 5000], fov: 50, near: 1, far: 100000 }}>
@@ -174,7 +235,7 @@ export function CanvasTab() {
           <ProposalOverlay key={`prop-${idx}`} proposal={prop} />
         ))}
 
-        <OrbitControls makeDefault enableDamping dampingFactor={0.1} />
+        <ControlsAutoCenter />
 
         {/* World Reference */}
         <gridHelper args={[20000, 20, '#1e293b', '#0f172a']} position={[0, -1000, 0]} />

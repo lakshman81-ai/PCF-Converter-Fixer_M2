@@ -14,6 +14,16 @@ function pushWithSuppression(log, element, entry) {
         // For simplicity, we suppress warnings/errors on fully approved rows in multi-pass.
         return;
     }
+    // Skip checking rules for rows that already have a [1st Pass] fixing action
+    if (element && element.fixingAction && element.fixingAction.includes('[1st Pass]')) {
+        return;
+    }
+
+    // Add logic for 2nd Pass Text Generation
+    if (entry && entry.pass === 2) {
+        entry.message = entry.message.replace(/ERROR |WARNING /, '');
+    }
+
     log.push(entry);
 }
 
