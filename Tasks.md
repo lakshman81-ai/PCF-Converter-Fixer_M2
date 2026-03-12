@@ -1,7 +1,8 @@
-# Tasks
-
 [10-03-2025/11:00] [Task 1] [provide zip file] [Created an updated code folder and compressed the source code into pcf_validator_fixer.zip] [Zipped src, public, package configs, and markdown proofs] [Record: Zipped into `updated code/pcf_validator_fixer.zip`] [PR_Branchname: fix-pcf-validator-final-delivery] [`updated code/pcf_validator_fixer.zip`]
 [Implementation Pending/Improvements Identified for future]: None.
 
 [10-03-2025/11:30] [Task 2] [PcfTopologyGraph_2 Logic] [Implemented UI Modal logic selecting between Original Smart Fixer vs PcfTopologyGraph_2 with Sequential sweeps handling immutable elements translating vs pipe stretching.] [Updated modules: StatusBar.jsx, PcfTopologyGraph2.js] [Record: Tests OK, modals spawn correctly] []
 [Implementation Pending/Improvements Identified for future]: Global sweep radii logic needs true vector collision logic vs simple distance bounding.
+
+[12-03-2026/00:00] [Task 3] [Smart Fix Popups in 3D & Physical Mutation] [Updated ProposalOverlay to trigger physical model geometry mutation instantly by invoking physics engine (applyFixes) upon proposal approval in 3D. Replaced local highlight with global HighlightMesh and added CameraController for selection wireframe and smooth zoom.] [Updated modules: CanvasTab.jsx] [Record: Frontend playwright run test verified Canvas loads properly without crash.] [PR_Branchname: feat-smartfix-3d-mutation-and-camera] []
+[Implementation Pending/Improvements Identified for future]: Missing tests for new CanvasTab components. Needs true end to end validation with valid mock data since the mock data button in the test doesn't load visualizable pipelines by default in headless mode.

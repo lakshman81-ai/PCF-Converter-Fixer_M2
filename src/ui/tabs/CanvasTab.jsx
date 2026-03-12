@@ -1,14 +1,18 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Line, Html, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { useStore } from '../../store/useStore';
+import { useAppContext } from '../../store/AppContext';
+import { applyFixes } from '../../engine/FixApplicator';
+import { createLogger as Logger } from '../../utils/Logger';
 
 // ----------------------------------------------------
 // Performance Optimized Instanced Pipes Rendering
 // ----------------------------------------------------
 const InstancedPipes = () => {
   const getPipes = useStore(state => state.getPipes);
+  const setSelected = useStore(state => state.setSelected);
   const pipes = getPipes();
   const meshRef = useRef();
 
@@ -26,86 +30,133 @@ const InstancedPipes = () => {
       const distance = vecA.distanceTo(vecB);
       if (distance === 0) return;
 
-      // Position: Midpoint
       const midPoint = vecA.clone().lerp(vecB, 0.5);
       dummy.position.copy(midPoint);
 
-      // Scale: Y-axis is length in Three.js cylinders
-      // For visual clarity, scale the X and Z by bore/2
       const radius = bore ? bore / 2 : 5;
       dummy.scale.set(radius, distance, radius);
 
-      // Orientation: Point from A to B
       const direction = vecB.clone().sub(vecA).normalize();
-      // Three.js cylinders point UP (Y-axis) by default
       const up = new THREE.Vector3(0, 1, 0);
       const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
       dummy.quaternion.copy(quaternion);
 
       dummy.updateMatrix();
       meshRef.current.setMatrixAt(i, dummy.matrix);
+
+      // Store the element ID in user data for raycasting selection
+      meshRef.current.userData = meshRef.current.userData || {};
+      meshRef.current.userData[i] = element._rowIndex || element.id;
     });
 
     meshRef.current.instanceMatrix.needsUpdate = true;
   }, [pipes, dummy]);
 
-  const [selectedId, setSelectedId] = useState(null);
-  const [selectedGeom, setSelectedGeom] = useState(null);
-
-  const handlePointerDown = (e) => {
+  const handleClick = (e) => {
       e.stopPropagation();
-      const instanceId = e.instanceId;
-      if (instanceId !== undefined && pipes[instanceId]) {
-          const pipe = pipes[instanceId];
-          setSelectedId(instanceId);
-          if (pipe.ep1 && pipe.ep2) {
-              const midX = (pipe.ep1.x + pipe.ep2.x) / 2;
-              const midY = (pipe.ep1.y + pipe.ep2.y) / 2;
-              const midZ = (pipe.ep1.z + pipe.ep2.z) / 2;
-
-              const vecA = new THREE.Vector3(pipe.ep1.x, pipe.ep1.y, pipe.ep1.z);
-              const vecB = new THREE.Vector3(pipe.ep2.x, pipe.ep2.y, pipe.ep2.z);
-              const distance = vecA.distanceTo(vecB);
-              const radius = pipe.bore ? pipe.bore / 2 : 5;
-              const direction = vecB.clone().sub(vecA).normalize();
-              const quaternion = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
-
-              setSelectedGeom({ pos: [midX, midY, midZ], dist: distance, radius, quat: quaternion });
-
-              window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x: midX, y: midY, z: midZ, dist: distance } }));
-          }
+      if (e.instanceId !== undefined) {
+          const clickedId = meshRef.current.userData[e.instanceId];
+          setSelected(clickedId);
       }
   };
 
-  if (pipes.length === 0) return null;
-
   return (
-    <group>
-        <instancedMesh ref={meshRef} args={[null, null, pipes.length]} onPointerDown={handlePointerDown}>
-          <cylinderGeometry args={[1, 1, 1, 16]} />
-          <meshStandardMaterial color="#3b82f6" />
-        </instancedMesh>
-
-        {/* Highlight Overlay */}
-        {selectedGeom && (
-             <mesh position={selectedGeom.pos} quaternion={selectedGeom.quat}>
-                 <cylinderGeometry args={[selectedGeom.radius * 1.5, selectedGeom.radius * 1.5, selectedGeom.dist, 16]} />
-                 <meshBasicMaterial color="#eab308" wireframe={true} />
-             </mesh>
-        )}
-    </group>
+    <instancedMesh ref={meshRef} args={[null, null, pipes.length]} onClick={handleClick}>
+      <cylinderGeometry args={[1, 1, 1, 16]} />
+      <meshStandardMaterial color="#64748b" />
+    </instancedMesh>
   );
 };
 
 // ----------------------------------------------------
-// Gap/Proposal Visualization
+// Highlight Wireframe for Selected Element
+// ----------------------------------------------------
+const HighlightMesh = () => {
+    const selectedId = useStore(state => state.selectedElementId);
+    const dataTable = useStore(state => state.dataTable);
+
+    if (!selectedId) return null;
+
+    const selectedEl = dataTable.find(r => r.id === selectedId || r._rowIndex === selectedId);
+    if (!selectedEl || !selectedEl.ep1 || !selectedEl.ep2) return null;
+
+    const vecA = new THREE.Vector3(selectedEl.ep1.x, selectedEl.ep1.y, selectedEl.ep1.z);
+    const vecB = new THREE.Vector3(selectedEl.ep2.x, selectedEl.ep2.y, selectedEl.ep2.z);
+    const distance = vecA.distanceTo(vecB);
+    const midPoint = vecA.clone().lerp(vecB, 0.5);
+    const radius = (selectedEl.bore ? selectedEl.bore / 2 : 5) * 1.5; // Slightly larger
+
+    const direction = vecB.clone().sub(vecA).normalize();
+    const up = new THREE.Vector3(0, 1, 0);
+    const quaternion = new THREE.Quaternion().setFromUnitVectors(up, direction);
+
+    return (
+        <mesh position={midPoint} quaternion={quaternion}>
+            <cylinderGeometry args={[radius, radius, distance + 10, 16]} />
+            <meshBasicMaterial color="#eab308" wireframe={true} />
+        </mesh>
+    );
+};
+
+// ----------------------------------------------------
+// Camera Tweening Controller
+// ----------------------------------------------------
+const CameraController = ({ controlsRef }) => {
+    const selectedId = useStore(state => state.selectedElementId);
+    const dataTable = useStore(state => state.dataTable);
+
+    const targetPos = useRef(new THREE.Vector3());
+    const cameraTargetPos = useRef(new THREE.Vector3());
+    const isAnimating = useRef(false);
+
+    useEffect(() => {
+        if (!selectedId) return;
+        const selectedEl = dataTable.find(r => r.id === selectedId || r._rowIndex === selectedId);
+        if (selectedEl && selectedEl.ep1) {
+            let center;
+            if (selectedEl.ep2) {
+                center = new THREE.Vector3(
+                    (selectedEl.ep1.x + selectedEl.ep2.x) / 2,
+                    (selectedEl.ep1.y + selectedEl.ep2.y) / 2,
+                    (selectedEl.ep1.z + selectedEl.ep2.z) / 2
+                );
+            } else {
+                center = new THREE.Vector3(selectedEl.ep1.x, selectedEl.ep1.y, selectedEl.ep1.z);
+            }
+
+            targetPos.current.copy(center);
+            cameraTargetPos.current.set(center.x + 500, center.y + 500, center.z + 500);
+            isAnimating.current = true;
+        }
+    }, [selectedId, dataTable]);
+
+    useFrame((state, delta) => {
+        if (!isAnimating.current || !controlsRef.current) return;
+
+        THREE.MathUtils.damp3(state.camera.position, cameraTargetPos.current, 4, delta);
+        THREE.MathUtils.damp3(controlsRef.current.target, targetPos.current, 4, delta);
+        controlsRef.current.update();
+
+        if (state.camera.position.distanceTo(cameraTargetPos.current) < 5) {
+            isAnimating.current = false;
+        }
+    });
+
+    return null;
+};
+
+// ----------------------------------------------------
+// Gap/Proposal Visualization with Physical Mutation
 // ----------------------------------------------------
 const ProposalOverlay = ({ proposal }) => {
   const [clicked, setClicked] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const setProposalStatus = useStore(state => state.setProposalStatus);
 
-  const { elementA, elementB, description, vector, _fixApproved } = proposal;
+  const setProposalStatus = useStore(state => state.setProposalStatus);
+  const setDataTable = useStore(state => state.setDataTable);
+  const { state: appState, dispatch } = useAppContext();
+
+  const { elementA, elementB, description, _fixApproved } = proposal;
 
   if (!elementA.ep2 || !elementB.ep1) return null;
 
@@ -116,7 +167,36 @@ const ProposalOverlay = ({ proposal }) => {
   const midY = (pA[1] + pB[1]) / 2;
   const midZ = (pA[2] + pB[2]) / 2;
 
-  // Active Html overlay is expensive, so only show when clicked
+  const handleApproveAndMutate = (e) => {
+      e.stopPropagation();
+
+      // 1. Mark as approved in Zustand visual store
+      setProposalStatus(elementA._rowIndex, true);
+
+      // 2. Mark as approved in a cloned Global state table
+      const updatedTable = appState.dataTable.map(r =>
+          r._rowIndex === elementA._rowIndex ? { ...r, _fixApproved: true } : r
+      );
+
+      // 3. Run the physics engine instantly
+      const logger = Logger();
+      const result = applyFixes(updatedTable, appState.smartFix.chains, appState.config, logger);
+
+      // 4. Update Global Context
+      dispatch({ type: "SET_DATA_TABLE", payload: result.updatedTable });
+      dispatch({ type: "SET_SMART_FIX_STATUS", status: "applied" });
+
+      // 5. Force the 3D Canvas to re-render the new solid geometry
+      setDataTable(result.updatedTable);
+      setClicked(false);
+  };
+
+  const handleReject = (e) => {
+      e.stopPropagation();
+      setProposalStatus(elementA._rowIndex, false);
+      setClicked(false);
+  };
+
   return (
     <group>
       <Line
@@ -129,7 +209,6 @@ const ProposalOverlay = ({ proposal }) => {
         onClick={(e) => { e.stopPropagation(); setClicked(!clicked); }}
       />
 
-      {/* Passive Text Label (cheap WebGL) */}
       {!clicked && (
         <Text
           position={[midX, midY + 150, midZ]}
@@ -142,7 +221,6 @@ const ProposalOverlay = ({ proposal }) => {
         </Text>
       )}
 
-      {/* Active Html Overlay (expensive DOM) */}
       {clicked && (
         <Html position={[midX, midY, midZ]} center zIndexRange={[100, 0]}>
           <div className={`p-3 rounded-lg shadow-xl text-xs w-64 border backdrop-blur-md ${
@@ -163,15 +241,15 @@ const ProposalOverlay = ({ proposal }) => {
                 className={`text-white px-2 py-1.5 rounded w-full transition-colors ${
                     _fixApproved === true ? 'bg-green-600 hover:bg-green-500' : 'bg-slate-700 hover:bg-green-600'
                 }`}
-                onClick={(e) => { e.stopPropagation(); setProposalStatus(elementA._rowIndex, true); }}
+                onClick={handleApproveAndMutate}
               >
-                ✓ Approve
+                ✓ Approve & Snap
               </button>
               <button
                 className={`text-white px-2 py-1.5 rounded w-full transition-colors ${
                     _fixApproved === false ? 'bg-red-600 hover:bg-red-500' : 'bg-slate-700 hover:bg-red-600'
                 }`}
-                onClick={(e) => { e.stopPropagation(); setProposalStatus(elementA._rowIndex, false); }}
+                onClick={handleReject}
               >
                 ✗ Reject
               </button>
@@ -184,7 +262,6 @@ const ProposalOverlay = ({ proposal }) => {
   );
 };
 
-
 // ----------------------------------------------------
 // Main Tab Component
 // ----------------------------------------------------
@@ -192,56 +269,43 @@ const ControlsAutoCenter = () => {
     const controlsRef = useRef();
     const getPipes = useStore(state => state.getPipes);
 
-    // Add custom event listener for auto-center
     useEffect(() => {
         const handleFocus = (e) => {
             if (!controlsRef.current) return;
             const { x, y, z, dist } = e.detail;
             controlsRef.current.target.set(x, y, z);
-            // Move camera closer to object based on its length/dist
-            const zoomDist = Math.max(dist * 2, 500);
-            controlsRef.current.object.position.set(x + zoomDist, y + zoomDist, z + zoomDist);
+            controlsRef.current.object.position.set(x + dist, y + dist, z + dist);
             controlsRef.current.update();
         };
 
-        const handleCenter = () => {
+        const handleAutoCenter = () => {
+            if (!controlsRef.current) return;
             const pipes = getPipes();
-            if (pipes.length === 0 || !controlsRef.current) return;
+            if (pipes.length === 0) return;
 
-            // Calculate bounding box of all pipes
-            let minX = Infinity, minY = Infinity, minZ = Infinity;
-            let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-
+            const box = new THREE.Box3();
             pipes.forEach(p => {
-                if (p.ep1) {
-                    minX = Math.min(minX, p.ep1.x); minY = Math.min(minY, p.ep1.y); minZ = Math.min(minZ, p.ep1.z);
-                    maxX = Math.max(maxX, p.ep1.x); maxY = Math.max(maxY, p.ep1.y); maxZ = Math.max(maxZ, p.ep1.z);
-                }
-                if (p.ep2) {
-                    minX = Math.min(minX, p.ep2.x); minY = Math.min(minY, p.ep2.y); minZ = Math.min(minZ, p.ep2.z);
-                    maxX = Math.max(maxX, p.ep2.x); maxY = Math.max(maxY, p.ep2.y); maxZ = Math.max(maxZ, p.ep2.z);
-                }
+                if (p.ep1) box.expandByPoint(new THREE.Vector3(p.ep1.x, p.ep1.y, p.ep1.z));
+                if (p.ep2) box.expandByPoint(new THREE.Vector3(p.ep2.x, p.ep2.y, p.ep2.z));
             });
 
-            if (minX !== Infinity) {
-                const centerX = (minX + maxX) / 2;
-                const centerY = (minY + maxY) / 2;
-                const centerZ = (minZ + maxZ) / 2;
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            const maxDim = Math.max(size.x, size.y, size.z);
 
-                // Set target of OrbitControls
-                controlsRef.current.target.set(centerX, centerY, centerZ);
-                // Adjust camera position relative to center
-                const maxDim = Math.max(maxX - minX, maxY - minY, maxZ - minZ);
-                controlsRef.current.object.position.set(centerX + maxDim, centerY + maxDim, centerZ + maxDim);
-                controlsRef.current.update();
-            }
+            controlsRef.current.target.copy(center);
+            controlsRef.current.object.position.set(center.x + maxDim, center.y + maxDim, center.z + maxDim);
+            controlsRef.current.update();
         };
 
-        window.addEventListener('canvas-auto-center', handleCenter);
-        window.addEventListener('canvas-focus-point', handleFocus);
+        window.addEventListener('canvas-focus', handleFocus);
+        window.addEventListener('canvas-auto-center', handleAutoCenter);
+
         return () => {
-            window.removeEventListener('canvas-auto-center', handleCenter);
-            window.removeEventListener('canvas-focus-point', handleFocus);
+            window.removeEventListener('canvas-focus', handleFocus);
+            window.removeEventListener('canvas-auto-center', handleAutoCenter);
         };
     }, [getPipes]);
 
@@ -250,6 +314,8 @@ const ControlsAutoCenter = () => {
 
 export function CanvasTab() {
   const proposals = useStore(state => state.proposals);
+  const setSelected = useStore(state => state.setSelected);
+  const controlsRef = useRef();
 
   const handleAutoCenter = () => {
       window.dispatchEvent(new CustomEvent('canvas-auto-center'));
@@ -270,39 +336,33 @@ export function CanvasTab() {
             className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded border border-slate-700 shadow flex items-center gap-2 text-sm transition-colors"
             title="Auto Center Camera"
         >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h6"/><path d="M3 3v6"/><path d="M21 3h-6"/><path d="M21 3v6"/><path d="M3 21h6"/><path d="M3 21v-6"/><path d="M21 21h-6"/><path d="M21 21v-6"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5"></path><path d="M21 3v5h-5"></path><path d="M21 21v-5h-5"></path><path d="M3 21v-5h5"></path><path d="M10 10h4v4h-4z"></path></svg>
             Auto Center
         </button>
       </div>
 
-      <Canvas camera={{ position: [5000, 5000, 5000], fov: 50, near: 1, far: 100000 }}>
-        <color attach="background" args={['#020617']} />
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[1000, 1000, 500]} intensity={1.5} />
-        <directionalLight position={[-1000, -1000, -500]} intensity={0.5} />
+      {/* R3F WebGL Canvas */}
+      <div className="flex-1 w-full h-full relative" onPointerMissed={() => setSelected(null)}>
+        <Canvas camera={{ position: [5000, 5000, 5000], fov: 50 }}>
 
-        <InstancedPipes />
+          <CameraController controlsRef={controlsRef} />
 
-        {proposals.map((prop, idx) => (
-          <ProposalOverlay key={`prop-${idx}`} proposal={prop} />
-        ))}
+          <ambientLight intensity={0.5} />
+          <directionalLight position={[10, 10, 5]} intensity={1} />
 
-        <ControlsAutoCenter />
+          <InstancedPipes />
+          <HighlightMesh />
 
-        {/* World Reference */}
-        <gridHelper args={[20000, 20, '#1e293b', '#0f172a']} position={[0, -1000, 0]} />
-      </Canvas>
+          {proposals.map((prop, idx) => (
+            <ProposalOverlay key={`prop-${idx}`} proposal={prop} />
+          ))}
 
-      {/* Small Axis Reference Overlay */}
-      <div className="absolute bottom-4 right-4 w-24 h-24 pointer-events-none">
-        <Canvas orthographic camera={{ position: [20, 20, 20], zoom: 5 }}>
-            <ambientLight intensity={1} />
-            <axesHelper args={[10]} />
-            <Text position={[12, 0, 0]} color="red" fontSize={4}>X</Text>
-            <Text position={[0, 12, 0]} color="green" fontSize={4}>Y</Text>
-            <Text position={[0, 0, 12]} color="blue" fontSize={4}>Z</Text>
+          <ControlsAutoCenter />
+
+          <gridHelper args={[100000, 100, '#1e293b', '#0f172a']} position={[0, -1000, 0]} />
         </Canvas>
       </div>
+
     </div>
   );
 }
