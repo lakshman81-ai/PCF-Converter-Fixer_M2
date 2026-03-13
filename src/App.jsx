@@ -11,6 +11,7 @@ import { useStore } from './store/useStore';
 
 function MainApp() {
   const [activeTab, setActiveTab] = useState('data');
+  const [activeStage, setActiveStage] = useState('1');
   const { state, dispatch } = useAppContext();
   const setZustandData = useStore(s => s.setDataTable);
 
@@ -80,9 +81,18 @@ function MainApp() {
 
         {/* Tab Content */}
         <div className="bg-white rounded shadow-sm min-h-[500px] border border-slate-200">
-          {activeTab === 'stage1' && <DataTableTab stage="1" />}
-          {activeTab === 'stage2' && <DataTableTab stage="2" />}
-          {activeTab === 'stage3' && <DataTableTab stage="3" />}
+          {activeTab === 'data' && (
+            <div className="flex flex-col">
+              <div className="bg-slate-100 p-2 border-b border-slate-200 flex space-x-2">
+                 <button onClick={() => setActiveStage('1')} className={`px-3 py-1 text-sm font-medium rounded ${activeStage === '1' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>Stage 1: Syntax & Base Data</button>
+                 <button onClick={() => setActiveStage('2')} className={`px-3 py-1 text-sm font-medium rounded ${activeStage === '2' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>Stage 2: Topology & Fixing</button>
+                 <button onClick={() => setActiveStage('3')} className={`px-3 py-1 text-sm font-medium rounded ${activeStage === '3' ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'}`}>Stage 3: Final Checks</button>
+              </div>
+              <div className="p-2">
+                <DataTableTab stage={activeStage} />
+              </div>
+            </div>
+          )}
           {activeTab === 'core' && <div className="p-4"><CoreProcessorTab /></div>}
           {activeTab === 'canvas' && <div className="p-2"><CanvasTab /></div>}
           {activeTab === 'config' && <ConfigTab />}
@@ -91,7 +101,7 @@ function MainApp() {
       </main>
 
       {/* Only show status bar when relevant, or make it dynamic based on tab */}
-      {activeTab === 'stage2' && <StatusBar />}
+      {activeTab === 'data' && activeStage === '2' && <StatusBar />}
     </div>
   );
 }
