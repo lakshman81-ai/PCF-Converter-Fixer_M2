@@ -1,6 +1,8 @@
 import React from 'react';
 import { useAppContext } from '../../store/AppContext';
 import { useStore } from '../../store/useStore';
+import { runValidationChecklist } from '../../engine/Validator';
+import { createLogger } from '../../utils/Logger';
 
 export function DataTableTab({ stage = "1" }) {
   const { state, dispatch } = useAppContext();
@@ -115,10 +117,31 @@ export function DataTableTab({ stage = "1" }) {
   };
 
   const handleValidateSyntax = () => {
-      // Trigger the engine's validator to run manually
-      // We need to simulate the event bus trigger that StatusBar uses
-      const event = new CustomEvent('RUN_VALIDATOR_MANUAL');
-      window.dispatchEvent(event);
+      const logger = createLogger();
+      const results = runValidationChecklist(dataTable, state.config, logger);
+
+      logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
+
+      let updatedTable = [...dataTable];
+      logger.getLog().forEach(entry => {
+        if (entry.row && entry.tier) {
+          const row = updatedTable.find(r => r._rowIndex === entry.row);
+          if (row) {
+             // Preserve existing proposals if any, otherwise set validation message
+             if (!row.fixingAction || row.fixingAction.includes('ERROR') || row.fixingAction.includes('WARNING')) {
+                row.fixingAction = entry.message;
+                row.fixingActionTier = entry.tier;
+                row.fixingActionRuleId = entry.ruleId;
+             }
+          }
+        }
+      });
+
+      if (stage === "1") dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+      if (stage === "2") dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
+      if (stage === "3") dispatch({ type: "SET_STAGE_3_DATA", payload: updatedTable });
+
+      alert(`Validation Complete: ${results.errorCount} Errors, ${results.warnCount} Warnings found.`);
   };
 
   const fixingActionStats = React.useMemo(() => {
@@ -268,24 +291,28 @@ export function DataTableTab({ stage = "1" }) {
     <>
       <div className="mb-2 flex flex-col xl:flex-row justify-between xl:items-end gap-2">
         <div className="flex flex-wrap gap-2 text-sm font-medium">
-            <div className="text-slate-600 bg-slate-100 px-3 py-1.5 rounded border border-slate-200 shadow-sm flex items-center">
-                Validation [Pass 1]:
-                <span className="text-red-600 ml-2 font-bold">Errors({fixingActionStats.errPass1})</span>,
-                <span className="text-orange-500 ml-2 font-bold">Warnings({fixingActionStats.warnPass1})</span>
-            </div>
-            {(fixingActionStats.errPass2 > 0 || fixingActionStats.warnPass2 > 0) && (
-                <div className="text-slate-600 bg-slate-100 px-3 py-1.5 rounded border border-slate-200 shadow-sm flex items-center">
-                    Validation [Pass 2]:
-                    <span className="text-red-600 ml-2 font-bold">Errors({fixingActionStats.errPass2})</span>,
-                    <span className="text-orange-500 ml-2 font-bold">Warnings({fixingActionStats.warnPass2})</span>
-                </div>
+            {stage !== "1" && (
+                <>
+                    <div className="text-slate-600 bg-slate-100 px-3 py-1.5 rounded border border-slate-200 shadow-sm flex items-center">
+                        Validation [Pass 1]:
+                        <span className="text-red-600 ml-2 font-bold">Errors({fixingActionStats.errPass1})</span>,
+                        <span className="text-orange-500 ml-2 font-bold">Warnings({fixingActionStats.warnPass1})</span>
+                    </div>
+                    {(fixingActionStats.errPass2 > 0 || fixingActionStats.warnPass2 > 0) && (
+                        <div className="text-slate-600 bg-slate-100 px-3 py-1.5 rounded border border-slate-200 shadow-sm flex items-center">
+                            Validation [Pass 2]:
+                            <span className="text-red-600 ml-2 font-bold">Errors({fixingActionStats.errPass2})</span>,
+                            <span className="text-orange-500 ml-2 font-bold">Warnings({fixingActionStats.warnPass2})</span>
+                        </div>
+                    )}
+                    <div className="text-slate-600 bg-indigo-50 px-3 py-1.5 rounded border border-indigo-200 shadow-sm flex items-center">
+                        Fixing Action:
+                        <span className="text-green-600 ml-2 font-bold">Approved({fixingActionStats.approved})</span>,
+                        <span className="text-slate-500 ml-2 font-bold">Rejected({fixingActionStats.rejected})</span>,
+                        <span className="text-amber-600 ml-2 font-bold">Pending({fixingActionStats.pending})</span>
+                    </div>
+                </>
             )}
-            <div className="text-slate-600 bg-indigo-50 px-3 py-1.5 rounded border border-indigo-200 shadow-sm flex items-center">
-                Fixing Action:
-                <span className="text-green-600 ml-2 font-bold">Approved({fixingActionStats.approved})</span>,
-                <span className="text-slate-500 ml-2 font-bold">Rejected({fixingActionStats.rejected})</span>,
-                <span className="text-amber-600 ml-2 font-bold">Pending({fixingActionStats.pending})</span>
-            </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 bg-white px-2 py-1 rounded border border-slate-300 shadow-sm">
             {stage === "2" && (
@@ -294,17 +321,19 @@ export function DataTableTab({ stage = "1" }) {
                 </button>
             )}
 
-            <div className="flex items-center space-x-2 border-r border-slate-200 pr-3 mr-1">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">FILTER:</span>
-                <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="text-sm bg-slate-50 text-slate-700 border-none outline-none cursor-pointer py-1 px-1 rounded font-medium">
-                    <option value="ALL">All Rows</option>
-                    <option value="ERRORS_WARNINGS">Errors & Warnings</option>
-                    <option value="PROPOSALS">Smart Fix Proposals</option>
-                    <option value="PENDING">Pending Approval</option>
-                    <option value="APPROVED">Approved</option>
-                    <option value="REJECTED">Rejected</option>
-                </select>
-            </div>
+            {stage !== "1" && (
+                <div className="flex items-center space-x-2 border-r border-slate-200 pr-3 mr-1">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">FILTER:</span>
+                    <select value={filterAction} onChange={e => setFilterAction(e.target.value)} className="text-sm bg-slate-50 text-slate-700 border-none outline-none cursor-pointer py-1 px-1 rounded font-medium">
+                        <option value="ALL">All Rows</option>
+                        <option value="ERRORS_WARNINGS">Errors & Warnings</option>
+                        <option value="PROPOSALS">Smart Fix Proposals</option>
+                        <option value="PENDING">Pending Approval</option>
+                        <option value="APPROVED">Approved</option>
+                        <option value="REJECTED">Rejected</option>
+                    </select>
+                </div>
+            )}
 
             <div className="flex items-center space-x-1">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1 hidden md:inline-block">Tools:</span>

@@ -18,35 +18,6 @@ export function StatusBar() {
   const setZustandProposals = useStore(state => state.setProposals);
 
   React.useEffect(() => {
-    const handleManualValidation = () => {
-        const logger = createLogger();
-        const results = runValidationChecklist(state.stage2Data, state.config, logger);
-        logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
-
-        let updatedTable = [...state.stage2Data];
-        logger.getLog().forEach(entry => {
-          if (entry.row && entry.tier) {
-            const row = updatedTable.find(r => r._rowIndex === entry.row);
-            if (row) {
-               // Preserve existing proposals if any, otherwise set validation message
-               if (!row.fixingAction || row.fixingAction.includes('ERROR') || row.fixingAction.includes('WARNING')) {
-                  row.fixingAction = entry.message;
-                  row.fixingActionTier = entry.tier;
-                  row.fixingActionRuleId = entry.ruleId;
-               }
-            }
-          }
-        });
-
-        dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
-        alert(`Validation Complete: ${results.errorCount} Errors, ${results.warnCount} Warnings found.`);
-    };
-
-    window.addEventListener('RUN_VALIDATOR_MANUAL', handleManualValidation);
-    return () => window.removeEventListener('RUN_VALIDATOR_MANUAL', handleManualValidation);
-  }, [state.stage2Data, state.config, dispatch]);
-
-  React.useEffect(() => {
     const handleSync = (e) => {
         const { rowIndex, status } = e.detail;
         let updatedTable = state.stage2Data.map(r =>
