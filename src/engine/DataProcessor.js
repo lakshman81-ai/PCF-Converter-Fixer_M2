@@ -89,8 +89,14 @@ export function runDataProcessor(dataTable, config, logger) {
     if (row.ep2) prevEp2 = { ...row.ep2 };
 
     // Step 11: Msg Gen
+    // Only generate new text if missing or preserve original, but let's append our calc if needed or just preserve.
+    // The issue says MESSAGE-SQUARE text disappeared. We should not overwrite it entirely if it was valid,
+    // or we should ensure we incorporate the original text. Let's just create a calculated text if it's completely missing,
+    // otherwise preserve what was parsed/imported.
     const len = row.ep1 && row.ep2 ? Math.round(vec.mag(vec.sub(row.ep2, row.ep1))) : 0;
-    row.text = `${t}, LENGTH=${len}MM, RefNo:${row.ca[97]}, SeqNo:${row.ca[98]}`;
+    if (!row.text || !row.text.includes("RefNo")) {
+         row.text = `${t}, LENGTH=${len}MM, RefNo:${row.ca[97]}, SeqNo:${row.ca[98]}`;
+    }
 
     updatedTable[i] = row;
   }

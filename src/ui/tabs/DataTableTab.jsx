@@ -24,6 +24,17 @@ export function DataTableTab({ stage = "1" }) {
           if (stage === "1") dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
           if (stage === "2") dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
           if (stage === "3") dispatch({ type: "SET_STAGE_3_DATA", payload: updatedTable });
+
+          const actionText = approve ? 'Approved' : 'Rejected';
+          const rowDescription = updatedTable[rowIdx].fixingAction ? updatedTable[rowIdx].fixingAction.substring(0, 50) + "..." : "";
+
+          dispatch({ type: "ADD_LOG", payload: {
+             stage: "FIXING",
+             type: approve ? "Applied" : "Warning",
+             row: rowIndex,
+             message: `User ${actionText} Fix: ${rowDescription}`
+          }});
+
           // Ensure Zustand proposals match this state so 3D canvas popups turn green
           if (stage === "2") useStore.getState().setProposalStatus(rowIndex, approve);
       }

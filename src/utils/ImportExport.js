@@ -94,18 +94,41 @@ export async function parsePCF(file, config) {
             continue;
           }
 
-          if (line.startsWith("MESSAGE-SQUARE")) continue; // Start of a block, but we wait for the type
+          if (line.startsWith("MESSAGE-SQUARE")) {
+             // We can optionally store that a message square is coming, but wait for the actual block
+             if (currentRow) rawRows.push(currentRow);
+             currentRow = { _rowIndex: rowIndex++, type: "UNKNOWN", ca: {}, _isMessageSquare: true };
+             continue;
+          }
 
           if (!line.startsWith(" ") && !line.startsWith("\t")) {
             // New component
-            if (currentRow) rawRows.push(currentRow);
-            currentRow = { _rowIndex: rowIndex++, type: trimmed, ca: {} };
+            if (currentRow && currentRow._isMessageSquare) {
+               // This means we had a MESSAGE-SQUARE block, and now the actual component starts.
+               // We should map the type.
+               currentRow.type = trimmed;
+               currentRow._isMessageSquare = false;
+            } else {
+               if (currentRow) rawRows.push(currentRow);
+               currentRow = { _rowIndex: rowIndex++, type: trimmed, ca: {} };
+            }
             continue;
           }
 
           if (currentRow) {
             const parts = trimmed.split(/\s+/);
             const key = parts[0];
+
+            if (currentRow._isMessageSquare) {
+               // We are in a message square block, the text inside it belongs to this component
+               if (!currentRow.text) currentRow.text = trimmed;
+               continue;
+            }
+
+            if (key !== "END-POINT" && key !== "CENTRE-POINT" && key !== "BRANCH1-POINT" && key !== "CO-ORDS" && !key.startsWith("<") && !key.startsWith("COMPONENT-ATTRIBUTE") && !key.startsWith("WEIGHT") && !key.startsWith("ITEM-CODE") && !key.startsWith("ITEM-DESCRIPTION") && !key.startsWith("FABRICATION-ITEM") && !key.startsWith("PIPING-SPEC") && !key.startsWith("TRACING-SPEC") && !key.startsWith("INSULATION-SPEC") && !key.startsWith("PAINTING-SPEC") && !key.startsWith("CONTINUATION")) {
+               // This might be the MESSAGE-SQUARE text or other text if not captured
+               if (!currentRow.text) currentRow.text = trimmed;
+            }
 
             if (key === "END-POINT" && parts.length >= 5) {
               const pt = { x: Number(parts[1]), y: Number(parts[2]), z: Number(parts[3]) };

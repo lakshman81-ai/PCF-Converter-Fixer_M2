@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Line, Html, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { useStore } from '../../store/useStore';
@@ -231,43 +231,13 @@ const ProposalOverlay = ({ proposal }) => {
         </Text>
       )}
 
-      {/* Active Html Overlay (expensive DOM) */}
+      {/* Visual Indicator of Proposal status instead of HTML popups */}
       {clicked && (
-        <Html position={[midX, midY, midZ]} center zIndexRange={[100, 0]}>
-          <div className={`p-3 rounded-lg shadow-xl text-xs w-64 border backdrop-blur-md ${
-             _fixApproved === true ? 'bg-green-900 border-green-500/50' :
-             _fixApproved === false ? 'bg-slate-900 border-slate-500/50' :
-             'bg-slate-800 border-red-500/50'
-          }`}>
-            <p className={`font-bold mb-1 border-b pb-1 ${
-                _fixApproved === true ? 'text-green-400 border-green-700' :
-                _fixApproved === false ? 'text-slate-400 border-slate-700' :
-                'text-red-400 border-slate-700'
-            }`}>
-                {_fixApproved === true ? 'Proposal Approved' : _fixApproved === false ? 'Proposal Rejected' : 'Topology Anomaly'}
-            </p>
-            <p className={`mb-3 leading-relaxed ${_fixApproved === false ? 'text-slate-500 line-through' : 'text-slate-300'}`}>{description}</p>
-            <div className="flex gap-2">
-              <button
-                className={`text-white px-2 py-1.5 rounded w-full transition-colors ${
-                    _fixApproved === true ? 'bg-green-600 hover:bg-green-500' : 'bg-slate-700 hover:bg-green-600'
-                }`}
-                onClick={handleApproveAndMutate}
-              >
-                ✓ Approve & Snap
-              </button>
-              <button
-                className={`text-white px-2 py-1.5 rounded w-full transition-colors ${
-                    _fixApproved === false ? 'bg-red-600 hover:bg-red-500' : 'bg-slate-700 hover:bg-red-600'
-                }`}
-                onClick={handleReject}
-              >
-                ✗ Reject
-              </button>
-            </div>
-            <button className="mt-2 text-slate-400 hover:text-slate-200 text-[10px] w-full text-right" onClick={(e) => { e.stopPropagation(); setClicked(false); }}>Close</button>
-          </div>
-        </Html>
+         <Html position={[midX, midY, midZ]} center zIndexRange={[100, 0]}>
+           <div className="bg-slate-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap border border-slate-700 shadow-lg pointer-events-none">
+             {description}
+           </div>
+         </Html>
       )}
     </group>
   );
@@ -279,6 +249,9 @@ const ProposalOverlay = ({ proposal }) => {
 // ----------------------------------------------------
 const IssuesPanel = () => {
     const proposals = useStore(state => state.proposals);
+    const setProposalStatus = useStore(state => state.setProposalStatus);
+    const setTable = useStore(state => state.setDataTable);
+    const { state: appState, dispatch } = useAppContext();
 
     const handleFocusIssue = (prop) => {
         if (!prop.elementA || !prop.elementA.ep2) return;
@@ -288,12 +261,51 @@ const IssuesPanel = () => {
         window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x, y, z, dist: 1500 } }));
     };
 
+    const handleApprove = (e, prop) => {
+        e.stopPropagation();
+        setProposalStatus(prop.elementA._rowIndex, true);
+
+        const updatedTable = appState.stage2Data.map(r =>
+            r._rowIndex === prop.elementA._rowIndex ? { ...r, _fixApproved: true } : r
+        );
+
+        dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
+
+        // Ensure log gets captured
+        const newLog = {
+           stage: "FIXING",
+           type: "Applied",
+           row: prop.elementA._rowIndex,
+           message: `User Approved Fix: ${prop.description}`
+        };
+        dispatch({ type: "ADD_LOG", payload: newLog });
+    };
+
+    const handleReject = (e, prop) => {
+        e.stopPropagation();
+        setProposalStatus(prop.elementA._rowIndex, false);
+
+        const updatedTable = appState.stage2Data.map(r =>
+            r._rowIndex === prop.elementA._rowIndex ? { ...r, _fixApproved: false } : r
+        );
+
+        dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
+
+        const newLog = {
+           stage: "FIXING",
+           type: "Warning",
+           row: prop.elementA._rowIndex,
+           message: `User Rejected Fix: ${prop.description}`
+        };
+        dispatch({ type: "ADD_LOG", payload: newLog });
+    };
+
     const activeIssues = proposals.filter(p => p._fixApproved !== true);
 
     if (activeIssues.length === 0) return null;
 
     return (
-        <div className="absolute top-4 right-32 z-10 w-64 max-h-96 overflow-y-auto bg-slate-900/90 border border-red-500/30 rounded-lg shadow-2xl backdrop-blur text-sm pointer-events-auto flex flex-col">
+        <div className="absolute top-4 right-32 z-10 w-80 max-h-96 overflow-y-auto bg-slate-900/90 border border-red-500/30 rounded-lg shadow-2xl backdrop-blur text-sm pointer-events-auto flex flex-col">
             <div className="bg-red-900/50 p-2 border-b border-red-500/30 sticky top-0 flex justify-between items-center">
                 <span className="text-red-300 font-bold flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -311,7 +323,12 @@ const IssuesPanel = () => {
                             <span className="font-semibold text-slate-200">Gap Anomaly</span>
                             <span className="text-xs text-red-400 bg-red-900/30 px-1 rounded border border-red-800">Review</span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-1 line-clamp-2" title={prop.description}>{prop.description}</p>
+                        <p className={`text-xs mt-1 mb-2 line-clamp-2 ${prop._fixApproved === false ? 'text-slate-500 line-through' : 'text-slate-400'}`} title={prop.description}>{prop.description}</p>
+
+                        <div className="flex gap-2">
+                            <button className="flex-1 bg-green-700 hover:bg-green-600 text-white text-xs py-1 rounded" onClick={(e) => handleApprove(e, prop)}>Approve</button>
+                            <button className="flex-1 bg-red-700 hover:bg-red-600 text-white text-xs py-1 rounded" onClick={(e) => handleReject(e, prop)}>Reject</button>
+                        </div>
                     </div>
                 ))}
             </div>
@@ -322,7 +339,6 @@ const IssuesPanel = () => {
 // ----------------------------------------------------
 // Main Tab Component
 // ----------------------------------------------------
-import { useFrame } from '@react-three/fiber';
 
 const ControlsAutoCenter = () => {
     const controlsRef = useRef();
@@ -355,8 +371,14 @@ const ControlsAutoCenter = () => {
             const { x, y, z, dist } = e.detail;
             const tPos = new THREE.Vector3(x, y, z);
             // Move camera closer to object based on its length/dist
-            const zoomDist = Math.max(dist * 2, 500);
-            const cPos = new THREE.Vector3(x + zoomDist, y + zoomDist, z + zoomDist);
+            // Make sure the zoom distance isn't excessively far or close
+            const zoomDist = Math.max(dist * 1.5, 300);
+
+            // Current camera direction to object
+            const dir = new THREE.Vector3().subVectors(controlsRef.current.object.position, tPos).normalize();
+            if (dir.lengthSq() < 0.1) dir.set(1, 1, 1).normalize(); // Default offset if dead center
+
+            const cPos = new THREE.Vector3().copy(tPos).addScaledVector(dir, zoomDist);
 
             setTargetPos(tPos);
             setCamPos(cPos);
