@@ -1,6 +1,6 @@
 import { vec } from '../math/VectorMath.js';
 
-export function runValidationChecklist(dataTable, config, logger) {
+export function runValidationChecklist(dataTable, config, logger, stage = "1") {
   logger.push({ stage: "VALIDATION", type: "Info", message: "═══ RUNNING V1-V20 VALIDATION CHECKLIST ═══" });
 
   let errorCount = 0;
@@ -103,7 +103,7 @@ export function runValidationChecklist(dataTable, config, logger) {
     }
 
     // V15: Coordinate Continuity
-    if (shouldRun('V15') && type !== "SUPPORT" && row._rowIndex > 1) {
+    if (stage !== "1" && shouldRun('V15') && type !== "SUPPORT" && row._rowIndex > 1) {
         const prevRow = dataTable.find(r => r._rowIndex === row._rowIndex - 1);
         if (prevRow && prevRow.ep2 && row.ep1 && !vec.approxEqual(row.ep1, prevRow.ep2, 1.0)) {
             const dist = vec.dist(row.ep1, prevRow.ep2);

@@ -3,6 +3,7 @@ import { useAppContext } from '../../store/AppContext';
 import { useStore } from '../../store/useStore';
 import { runValidationChecklist } from '../../engine/Validator';
 import { createLogger } from '../../utils/Logger';
+import { exportToExcel, generatePCFText } from '../../utils/ImportExport';
 
 export function DataTableTab({ stage = "1" }) {
   const { state, dispatch } = useAppContext();
@@ -116,9 +117,26 @@ export function DataTableTab({ stage = "1" }) {
       alert("Successfully pulled Stage 1 data into Stage 2.");
   };
 
+  const handleSyntaxFix = () => {
+      const updatedTable = dataTable.map(r => {
+          const newRow = { ...r };
+          if (newRow.type) newRow.type = newRow.type.toUpperCase().trim();
+          if (newRow.skey) newRow.skey = newRow.skey.toUpperCase().trim();
+          // Clear exact 0,0,0 coordinates that are likely undefined
+          const isZero = (pt) => pt && pt.x === 0 && pt.y === 0 && pt.z === 0;
+          if (isZero(newRow.ep1)) newRow.ep1 = null;
+          if (isZero(newRow.ep2)) newRow.ep2 = null;
+          if (isZero(newRow.cp)) newRow.cp = null;
+          if (isZero(newRow.bp)) newRow.bp = null;
+          return newRow;
+      });
+      dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
+      alert("Basic syntax standardization (capitalization, zero-coordinate clearing) applied.");
+  };
+
   const handleValidateSyntax = () => {
       const logger = createLogger();
-      const results = runValidationChecklist(dataTable, state.config, logger);
+      const results = runValidationChecklist(dataTable, state.config, logger, stage);
 
       logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
 
@@ -199,6 +217,18 @@ export function DataTableTab({ stage = "1" }) {
   }
 
   if (!dataTable || dataTable.length === 0) {
+    if (stage === "2") {
+       return (
+          <div className="flex flex-col items-center justify-center h-[calc(100vh-12rem)] text-slate-500 p-8">
+              <h2 className="text-xl font-bold mb-2 text-slate-700">Stage 2: Topology & Fixing</h2>
+              <p className="max-w-xl text-center mb-6">Data for Stage 2 (Topology & Fixing) must be explicitly pulled from Stage 1 after syntax checks are complete.</p>
+              <button onClick={handlePullStage1} disabled={!state.dataTable || state.dataTable.length === 0} className="mt-4 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-white rounded font-bold shadow disabled:opacity-50">
+                  Pull Data from Stage 1
+              </button>
+              {(!state.dataTable || state.dataTable.length === 0) && <p className="text-xs mt-2 text-red-500">Stage 1 has no data.</p>}
+          </div>
+       );
+    }
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-12rem)] text-slate-500">
         <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="mb-4 text-slate-400">
@@ -251,7 +281,7 @@ export function DataTableTab({ stage = "1" }) {
     return (
       <div className={`${colors.bg} ${colors.text} border-l-4 ${colors.border} p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap rounded-r shadow-sm min-w-[280px]`}>
         <div className="font-semibold mb-1">
-             <span className="text-slate-600 mr-1">{passPrefix}</span>
+             {stage !== "1" && <span className="text-slate-600 mr-1">{passPrefix}</span>}
              {validationMsg}
         </div>
         {actionMsg && (
@@ -340,6 +370,9 @@ export function DataTableTab({ stage = "1" }) {
 
                 {stage === "1" && (
                     <>
+                        <button onClick={handleSyntaxFix} className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-slate-600 hover:text-indigo-700 rounded text-xs font-semibold border border-transparent hover:border-indigo-200 transition-all shadow-sm mr-1" title="Standardize strings and fix basic syntax errors">
+                            <span className="mr-1">🔧</span>Syntax Fix
+                        </button>
                         <button onClick={handleValidateSyntax} className="px-2.5 py-1 bg-white hover:bg-teal-50 text-slate-600 hover:text-teal-700 rounded text-xs font-semibold border border-transparent hover:border-teal-200 transition-all shadow-sm" title="Run strict Data Table validation checks">
                             <span className="mr-1">🛡️</span>Check Syntax
                         </button>
@@ -359,6 +392,34 @@ export function DataTableTab({ stage = "1" }) {
                         </button>
                         <button onClick={handleAutoApproveAll} className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-xs font-bold border border-indigo-200 transition-all shadow-sm ml-2" title="Approve all Tier 1/2 automated fixes">
                             <span className="mr-1">⚡</span>Auto Approve (&lt;25mm)
+                        </button>
+                    </>
+                )}
+
+                {stage === "3" && (
+                    <>
+                        <button onClick={async () => {
+                            try {
+                                await exportToExcel(dataTable);
+                                dispatch({ type: "ADD_LOG", payload: { type: "Info", message: "Exported Data Table to Excel." }});
+                            } catch (err) {
+                                alert("Error exporting Excel: " + err.message);
+                            }
+                        }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded text-xs font-bold border border-slate-900 transition-all shadow-sm ml-2">
+                            Export Data Table ↓
+                        </button>
+                        <button onClick={() => {
+                            const text = generatePCFText(dataTable, state.config);
+                            const blob = new Blob([text], { type: 'text/plain' });
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = 'export.pcf';
+                            a.click();
+                            window.URL.revokeObjectURL(url);
+                            dispatch({ type: "ADD_LOG", payload: { type: "Info", message: "Exported PCF file." }});
+                        }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded text-xs font-bold border border-slate-900 transition-all shadow-sm ml-1">
+                            Export PCF ↓
                         </button>
                     </>
                 )}

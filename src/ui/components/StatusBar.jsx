@@ -3,7 +3,6 @@ import { useAppContext } from '../../store/AppContext';
 import { runSmartFix } from '../../engine/Orchestrator';
 import { applyFixes } from '../../engine/FixApplicator';
 import { createLogger } from '../../utils/Logger';
-import { exportToExcel, generatePCFText } from '../../utils/ImportExport';
 import { runValidationChecklist } from '../../engine/Validator';
 import { runDataProcessor } from '../../engine/DataProcessor';
 
@@ -71,7 +70,6 @@ export function StatusBar() {
   const isDataLoaded = state.stage2Data && state.stage2Data.length > 0;
   const isRunning = state.smartFix.status === "running";
   const isApplying = state.smartFix.status === "applying";
-  const passNum = state.smartFix.pass || 1;
   const isSecondPassReady = state.smartFix.status === "applied" && state.config.pteMode?.autoMultiPassMode;
 
   // Apply Fixes should be enabled if any row is approved and we're not currently applying
@@ -88,27 +86,6 @@ export function StatusBar() {
     // Update data table explicitly so UI picks up the pass 2 prefixes
     dispatch({ type: "SET_STAGE_2_DATA", payload: pass2Table });
     dispatch({ type: "SMART_FIX_COMPLETE", payload: { ...result, pass: 2 } });
-  };
-
-  const handleExportExcel = async () => {
-    try {
-      await exportToExcel(state.stage2Data);
-      dispatch({ type: "ADD_LOG", payload: { type: "Info", message: "Exported Data Table to Excel." }});
-    } catch (err) {
-      alert("Error exporting Excel: " + err.message);
-    }
-  };
-
-  const handleExportPCF = () => {
-    const text = generatePCFText(state.stage2Data, state.config);
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'export.pcf';
-    a.click();
-    window.URL.revokeObjectURL(url);
-    dispatch({ type: "ADD_LOG", payload: { type: "Info", message: "Exported PCF file." }});
   };
 
   const d = new Date();
@@ -181,12 +158,6 @@ export function StatusBar() {
     <div className="fixed bottom-0 left-0 right-0 h-12 bg-slate-800 text-white flex items-center justify-between px-4 text-sm z-50">
       <div className="flex items-center space-x-4">
         <span className="text-slate-300">Ready</span>
-        <button onClick={handleExportExcel} disabled={!isDataLoaded} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded disabled:opacity-50">
-          Export Data Table ↓
-        </button>
-        <button onClick={handleExportPCF} disabled={!isDataLoaded} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded disabled:opacity-50">
-          Export PCF ↓
-        </button>
         <button
           onClick={() => {
             const logger = createLogger();

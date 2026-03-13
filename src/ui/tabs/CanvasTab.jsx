@@ -52,7 +52,6 @@ const InstancedPipes = () => {
     meshRef.current.instanceMatrix.needsUpdate = true;
   }, [pipes, dummy]);
 
-  const [selectedId, setSelectedId] = useState(null);
   const [selectedGeom, setSelectedGeom] = useState(null);
 
   const handlePointerDown = (e) => {
@@ -60,7 +59,6 @@ const InstancedPipes = () => {
       const instanceId = e.instanceId;
       if (instanceId !== undefined && pipes[instanceId]) {
           const pipe = pipes[instanceId];
-          setSelectedId(instanceId);
           if (pipe.ep1 && pipe.ep2) {
               const midX = (pipe.ep1.x + pipe.ep2.x) / 2;
               const midY = (pipe.ep1.y + pipe.ep2.y) / 2;
@@ -110,7 +108,7 @@ const ProposalOverlay = ({ proposal }) => {
   const setTable = useStore(state => state.setDataTable);
   const { state: appState, dispatch } = useAppContext();
 
-  const { elementA, elementB, description, vector, _fixApproved } = proposal;
+  const { elementA, elementB, description, _fixApproved } = proposal;
 
   const handleApproveAndMutate = (e) => {
       e.stopPropagation();
@@ -217,20 +215,45 @@ const ProposalOverlay = ({ proposal }) => {
 // ----------------------------------------------------
 // Main Tab Component
 // ----------------------------------------------------
+import { useFrame } from '@react-three/fiber';
+
 const ControlsAutoCenter = () => {
     const controlsRef = useRef();
     const getPipes = useStore(state => state.getPipes);
+    const [targetPos, setTargetPos] = useState(null);
+    const [camPos, setCamPos] = useState(null);
+    const isAnimating = useRef(false);
+
+    // Smooth camera interpolation
+    useFrame((state, delta) => {
+        if (!controlsRef.current || !isAnimating.current || !targetPos || !camPos) return;
+
+        // Lerp OrbitControls target
+        controlsRef.current.target.lerp(targetPos, 5 * delta);
+        // Lerp Camera position
+        state.camera.position.lerp(camPos, 5 * delta);
+
+        // Stop animating when close
+        if (controlsRef.current.target.distanceTo(targetPos) < 1 && state.camera.position.distanceTo(camPos) < 1) {
+            isAnimating.current = false;
+        }
+
+        controlsRef.current.update();
+    });
 
     // Add custom event listener for auto-center
     useEffect(() => {
         const handleFocus = (e) => {
             if (!controlsRef.current) return;
             const { x, y, z, dist } = e.detail;
-            controlsRef.current.target.set(x, y, z);
+            const tPos = new THREE.Vector3(x, y, z);
             // Move camera closer to object based on its length/dist
             const zoomDist = Math.max(dist * 2, 500);
-            controlsRef.current.object.position.set(x + zoomDist, y + zoomDist, z + zoomDist);
-            controlsRef.current.update();
+            const cPos = new THREE.Vector3(x + zoomDist, y + zoomDist, z + zoomDist);
+
+            setTargetPos(tPos);
+            setCamPos(cPos);
+            isAnimating.current = true;
         };
 
         const handleCenter = () => {
@@ -257,12 +280,13 @@ const ControlsAutoCenter = () => {
                 const centerY = (minY + maxY) / 2;
                 const centerZ = (minZ + maxZ) / 2;
 
-                // Set target of OrbitControls
-                controlsRef.current.target.set(centerX, centerY, centerZ);
-                // Adjust camera position relative to center
+                const tPos = new THREE.Vector3(centerX, centerY, centerZ);
                 const maxDim = Math.max(maxX - minX, maxY - minY, maxZ - minZ);
-                controlsRef.current.object.position.set(centerX + maxDim, centerY + maxDim, centerZ + maxDim);
-                controlsRef.current.update();
+                const cPos = new THREE.Vector3(centerX + maxDim, centerY + maxDim, centerZ + maxDim);
+
+                setTargetPos(tPos);
+                setCamPos(cPos);
+                isAnimating.current = true;
             }
         };
 
@@ -290,7 +314,8 @@ export function CanvasTab() {
       {/* Canvas Overlay UI */}
       <div className="absolute top-4 left-4 z-10 pointer-events-none">
         <h2 className="text-slate-200 font-bold text-lg drop-shadow-md">3D Topology Canvas</h2>
-        <p className="text-slate-400 text-xs mt-1">Right-click pan, Scroll zoom, Left-click rotate</p>
+        <p className="text-slate-400 text-xs mt-1">Note: Visualization reflects data from Stage 2.</p>
+        <p className="text-slate-500 text-[10px] mt-0.5">Left-click element to focus/orbit, Right-click pan, Scroll zoom.</p>
       </div>
 
       <div className="absolute top-4 right-4 z-10">
