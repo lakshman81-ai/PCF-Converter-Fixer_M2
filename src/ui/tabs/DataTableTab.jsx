@@ -45,14 +45,18 @@ export function DataTableTab({ stage = "1" }) {
 
   const handleCalculateMissingGeometry = () => {
        let bendPtr = 0, rigidPtr = 0, intPtr = 0;
+       let updatedItems = { bore: 0, boreFb: 0, cp: 0, delta: 0, len: 0, ptr: 0 };
 
        const getAxis = (ep1, ep2) => {
-            const dx = Math.abs(ep2.x - ep1.x);
-            const dy = Math.abs(ep2.y - ep1.y);
-            const dz = Math.abs(ep2.z - ep1.z);
-            if (dx > dy && dx > dz) return 'X';
-            if (dy > dx && dy > dz) return 'Y';
-            if (dz > dx && dz > dy) return 'Z';
+            const dx = ep2.x - ep1.x;
+            const dy = ep2.y - ep1.y;
+            const dz = ep2.z - ep1.z;
+            const absX = Math.abs(dx);
+            const absY = Math.abs(dy);
+            const absZ = Math.abs(dz);
+            if (absX > absY && absX > absZ) return dx > 0 ? 'East' : 'West';
+            if (absY > absX && absY > absZ) return dy > 0 ? 'Up' : 'Down';
+            if (absZ > absX && absZ > absY) return dz > 0 ? 'North' : 'South';
             return 'U';
        };
 
@@ -69,6 +73,7 @@ export function DataTableTab({ stage = "1" }) {
                      r.bore = prev.bore;
                      r._modified = r._modified || {};
                      r._modified.bore = "Inherited";
+                     updatedItems.bore++;
                  }
             }
             // Missing Bore fallback for PIPES
@@ -76,6 +81,7 @@ export function DataTableTab({ stage = "1" }) {
                 r.bore = 100;
                 r._modified = r._modified || {};
                 r._modified.bore = "Fallback";
+                updatedItems.boreFb++;
             }
             // Missing CP for TEES
             if (t === "TEE" && (!r.cp || (r.cp.x === undefined && r.cp.y === undefined && r.cp.z === undefined) || (r.cp.x === 0 && r.cp.y === 0 && r.cp.z === 0)) && r.ep1 && r.ep2) {
@@ -86,6 +92,7 @@ export function DataTableTab({ stage = "1" }) {
                 };
                 r._modified = r._modified || {};
                 r._modified.cp = "Calculated Midpoint";
+                updatedItems.cp++;
             }
 
             // Calculate Vector Deltas (Axis) if missing
@@ -95,6 +102,7 @@ export function DataTableTab({ stage = "1" }) {
                 r.deltaZ = r.ep2.z - r.ep1.z;
                 r._modified = r._modified || {};
                 r._modified.deltaX = "Calc";
+                updatedItems.delta++;
             }
 
             // Calculate LEN/AXIS
@@ -104,6 +112,7 @@ export function DataTableTab({ stage = "1" }) {
                     r.axis1 = getAxis(r.ep1, r.ep2);
                     r._modified = r._modified || {};
                     r._modified.len1 = "Calc";
+                    updatedItems.len++;
                 }
             }
             if (t === "TEE" && r.cp && r.bp) {
@@ -111,26 +120,21 @@ export function DataTableTab({ stage = "1" }) {
                     r.brlen = dist(r.cp, r.bp);
                     r._modified = r._modified || {};
                     r._modified.brlen = "Calc";
+                    updatedItems.len++;
                 }
             }
             if (t === "BEND" && r.ep1 && r.ep2 && r.cp) {
-                 if (r.len1 === undefined) { r.len1 = dist(r.cp, r.ep1); r.axis1 = getAxis(r.cp, r.ep1); r._modified = r._modified || {}; r._modified.len1 = "Calc"; }
-                 if (r.len2 === undefined) { r.len2 = dist(r.cp, r.ep2); r.axis2 = getAxis(r.cp, r.ep2); r._modified = r._modified || {}; r._modified.len2 = "Calc"; }
+                 if (r.len1 === undefined) { r.len1 = dist(r.cp, r.ep1); r.axis1 = getAxis(r.cp, r.ep1); r._modified = r._modified || {}; r._modified.len1 = "Calc"; updatedItems.len++; }
+                 if (r.len2 === undefined) { r.len2 = dist(r.cp, r.ep2); r.axis2 = getAxis(r.cp, r.ep2); r._modified = r._modified || {}; r._modified.len2 = "Calc"; updatedItems.len++; }
             }
 
             // Pointers
             if (t === "BEND") {
-                if (!r.bendPtr) r.bendPtr = ++bendPtr;
-                r._modified = r._modified || {};
-                r._modified.bendPtr = "Calc";
+                if (!r.bendPtr) { r.bendPtr = ++bendPtr; r._modified = r._modified || {}; r._modified.bendPtr = "Calc"; updatedItems.ptr++; }
             } else if (t === "FLANGE" || t === "VALVE") {
-                if (!r.rigidPtr) r.rigidPtr = ++rigidPtr;
-                r._modified = r._modified || {};
-                r._modified.rigidPtr = "Calc";
+                if (!r.rigidPtr) { r.rigidPtr = ++rigidPtr; r._modified = r._modified || {}; r._modified.rigidPtr = "Calc"; updatedItems.ptr++; }
             } else if (t === "TEE" || t === "OLET") {
-                if (!r.intPtr) r.intPtr = ++intPtr;
-                r._modified = r._modified || {};
-                r._modified.intPtr = "Calc";
+                if (!r.intPtr) { r.intPtr = ++intPtr; r._modified = r._modified || {}; r._modified.intPtr = "Calc"; updatedItems.ptr++; }
             }
 
             // Dimensions lookup (mocked or fallback to ca data)
@@ -148,6 +152,16 @@ export function DataTableTab({ stage = "1" }) {
 
        // Trigger a sync so StatusBar knows table changed if needed
        if (stage === "2") window.dispatchEvent(new CustomEvent('zustand-force-sync'));
+
+       const alertLines = [];
+       if (updatedItems.bore > 0) alertLines.push(`- Bores Inherited: ${updatedItems.bore}`);
+       if (updatedItems.boreFb > 0) alertLines.push(`- Pipe Bore Fallbacks: ${updatedItems.boreFb}`);
+       if (updatedItems.cp > 0) alertLines.push(`- TEE Midpoints (CP): ${updatedItems.cp}`);
+       if (updatedItems.delta > 0) alertLines.push(`- Axis Deltas (dx,dy,dz): ${updatedItems.delta}`);
+       if (updatedItems.len > 0) alertLines.push(`- Lengths/Axis: ${updatedItems.len}`);
+       if (updatedItems.ptr > 0) alertLines.push(`- Reference Pointers: ${updatedItems.ptr}`);
+
+       alert(`Missing Geometry Check Complete:\n${alertLines.length > 0 ? alertLines.join('\n') : "No missing basic geometry found."}`);
   };
 
   const handlePullStage1 = () => {
@@ -166,20 +180,29 @@ export function DataTableTab({ stage = "1" }) {
   };
 
   const handleSyntaxFix = () => {
+      let capsFixed = 0;
+      let zeroFixed = 0;
+
       const updatedTable = dataTable.map(r => {
           const newRow = { ...r };
-          if (newRow.type) newRow.type = newRow.type.toUpperCase().trim();
-          if (newRow.skey) newRow.skey = newRow.skey.toUpperCase().trim();
-          // Clear exact 0,0,0 coordinates that are likely undefined
+          if (newRow.type && newRow.type !== newRow.type.toUpperCase().trim()) {
+              newRow.type = newRow.type.toUpperCase().trim();
+              capsFixed++;
+          }
+          if (newRow.skey && newRow.skey !== newRow.skey.toUpperCase().trim()) {
+              newRow.skey = newRow.skey.toUpperCase().trim();
+              capsFixed++;
+          }
+
           const isZero = (pt) => pt && pt.x === 0 && pt.y === 0 && pt.z === 0;
-          if (isZero(newRow.ep1)) newRow.ep1 = null;
-          if (isZero(newRow.ep2)) newRow.ep2 = null;
-          if (isZero(newRow.cp)) newRow.cp = null;
-          if (isZero(newRow.bp)) newRow.bp = null;
+          if (isZero(newRow.ep1)) { newRow.ep1 = null; zeroFixed++; }
+          if (isZero(newRow.ep2)) { newRow.ep2 = null; zeroFixed++; }
+          if (isZero(newRow.cp)) { newRow.cp = null; zeroFixed++; }
+          if (isZero(newRow.bp)) { newRow.bp = null; zeroFixed++; }
           return newRow;
       });
       dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
-      alert("Basic syntax standardization (capitalization, zero-coordinate clearing) applied.");
+      alert(`Syntax Fix Complete:\n- Capitalization Fixed: ${capsFixed}\n- Exact (0,0,0) points cleared: ${zeroFixed}`);
   };
 
   const handleValidateSyntax = () => {
@@ -188,8 +211,12 @@ export function DataTableTab({ stage = "1" }) {
 
       logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
 
+      const ruleCounts = {};
       let updatedTable = [...dataTable];
       logger.getLog().forEach(entry => {
+        if (entry.ruleId) {
+             ruleCounts[entry.ruleId] = (ruleCounts[entry.ruleId] || 0) + 1;
+        }
         if (entry.row && entry.tier) {
           const row = updatedTable.find(r => r._rowIndex === entry.row);
           if (row) {
@@ -207,25 +234,24 @@ export function DataTableTab({ stage = "1" }) {
       if (stage === "2") dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
       if (stage === "3") dispatch({ type: "SET_STAGE_3_DATA", payload: updatedTable });
 
-      alert(`Validation Complete: ${results.errorCount} Errors, ${results.warnCount} Warnings found.`);
+      const summaryText = Object.entries(ruleCounts).map(([rule, count]) => `${rule} (${count})`).join(', ');
+      alert(`Validation Complete:\n- ${results.errorCount} Errors\n- ${results.warnCount} Warnings\nFound: ${summaryText || 'None'}`);
   };
 
   const fixingActionStats = React.useMemo(() => {
-    let approved = 0, rejected = 0, pending = 0;
+    let approvedP1 = 0, rejectedP1 = 0, pendingP1 = 0;
+    let approvedP2 = 0, rejectedP2 = 0, pendingP2 = 0;
     let errPass1 = 0, warnPass1 = 0;
     let errPass2 = 0, warnPass2 = 0;
 
     if (dataTable) {
         dataTable.forEach(r => {
           if (r.fixingAction) {
-            if (r._fixApproved === true) approved++;
-            else if (r._fixApproved === false) rejected++;
-            else pending++;
-
-            const isP2 = r._passApplied === 2 || r.fixingAction.includes('[2nd Pass]');
+            const isP2 = r._passApplied === 2 || r._currentPass === 2 || r.fixingAction.includes('[2nd Pass]');
             const isErr = r.fixingActionTier === 4 || r.fixingAction.includes('ERROR');
             const isWarn = r.fixingActionTier === 3 || r.fixingAction.includes('WARNING');
 
+            // Check Validation stats
             if (isP2) {
                 if (isErr) errPass2++;
                 if (isWarn) warnPass2++;
@@ -233,10 +259,23 @@ export function DataTableTab({ stage = "1" }) {
                 if (isErr) errPass1++;
                 if (isWarn) warnPass1++;
             }
+
+            // Check Action stats
+            if (!isErr && !isWarn) {
+                if (isP2) {
+                    if (r._fixApproved === true || r._passApplied === 2) approvedP2++;
+                    else if (r._fixApproved === false) rejectedP2++;
+                    else pendingP2++;
+                } else {
+                    if (r._fixApproved === true || r._passApplied === 1) approvedP1++;
+                    else if (r._fixApproved === false) rejectedP1++;
+                    else pendingP1++;
+                }
+            }
           }
         });
     }
-    return { approved, rejected, pending, errPass1, warnPass1, errPass2, warnPass2 };
+    return { approvedP1, rejectedP1, pendingP1, errPass1, warnPass1, approvedP2, rejectedP2, pendingP2, errPass2, warnPass2 };
   }, [state.dataTable]);
 
   const filteredDataTable = React.useMemo(() => {
@@ -342,7 +381,7 @@ export function DataTableTab({ stage = "1" }) {
                         <div className="text-[9px] text-blue-600 mt-1 italic">(Click 'Apply Fixes ✓' in footer to mutate geometry)</div>
                      )}
                 </div>
-                {row._passApplied !== 1 && row._passApplied !== 2 && !row._isPassiveFix && (
+                {row._passApplied === undefined && !row._isPassiveFix && (
                     <div className="mt-2 flex space-x-2">
                         <button onClick={() => handleApprove(row._rowIndex, true)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === true ? 'bg-green-100 text-green-800 border border-green-400 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}`}>✓ Approve</button>
                         <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === false ? 'bg-slate-200 text-slate-500 border border-slate-400 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}`}>✗ Reject</button>
@@ -369,27 +408,37 @@ export function DataTableTab({ stage = "1" }) {
   return (
     <>
       <div className="mb-2 flex flex-col xl:flex-row justify-between xl:items-end gap-2">
-        <div className="flex flex-wrap gap-2 text-sm font-medium">
+        <div className="flex flex-col gap-1 text-xs font-medium w-full xl:w-auto">
             {stage !== "1" && (
                 <>
-                    <div className="text-slate-600 bg-slate-100 px-3 py-1.5 rounded border border-slate-200 shadow-sm flex items-center">
-                        Validation [Pass 1]:
-                        <span className="text-red-600 ml-2 font-bold">Errors({fixingActionStats.errPass1})</span>,
-                        <span className="text-orange-500 ml-2 font-bold">Warnings({fixingActionStats.warnPass1})</span>
+                    <div className="flex flex-wrap gap-2 mb-1">
+                        <div className="text-slate-600 bg-slate-100 px-3 py-1 rounded border border-slate-200 shadow-sm flex items-center">
+                            Validation [Pass 1]:
+                            <span className="text-red-600 ml-2 font-bold">Errors({fixingActionStats.errPass1})</span>,
+                            <span className="text-orange-500 ml-2 font-bold">Warnings({fixingActionStats.warnPass1})</span>
+                        </div>
+                        <div className="text-slate-600 bg-indigo-50 px-3 py-1 rounded border border-indigo-200 shadow-sm flex items-center">
+                            Smart Fixing Action [Pass 1]:
+                            <span className="text-green-600 ml-2 font-bold">Approved({fixingActionStats.approvedP1})</span>,
+                            <span className="text-slate-500 ml-2 font-bold">Rejected({fixingActionStats.rejectedP1})</span>,
+                            <span className="text-amber-600 ml-2 font-bold">Pending({fixingActionStats.pendingP1})</span>
+                        </div>
                     </div>
-                    {(fixingActionStats.errPass2 > 0 || fixingActionStats.warnPass2 > 0) && (
-                        <div className="text-slate-600 bg-slate-100 px-3 py-1.5 rounded border border-slate-200 shadow-sm flex items-center">
-                            Validation [Pass 2]:
-                            <span className="text-red-600 ml-2 font-bold">Errors({fixingActionStats.errPass2})</span>,
-                            <span className="text-orange-500 ml-2 font-bold">Warnings({fixingActionStats.warnPass2})</span>
+                    {(fixingActionStats.errPass2 > 0 || fixingActionStats.warnPass2 > 0 || fixingActionStats.approvedP2 > 0 || fixingActionStats.pendingP2 > 0) && (
+                        <div className="flex flex-wrap gap-2">
+                            <div className="text-slate-600 bg-slate-100 px-3 py-1 rounded border border-slate-200 shadow-sm flex items-center">
+                                Validation [Pass 2]:
+                                <span className="text-red-600 ml-2 font-bold">Errors({fixingActionStats.errPass2})</span>,
+                                <span className="text-orange-500 ml-2 font-bold">Warnings({fixingActionStats.warnPass2})</span>
+                            </div>
+                            <div className="text-slate-600 bg-purple-50 px-3 py-1 rounded border border-purple-200 shadow-sm flex items-center">
+                                Smart Fixing Action [Pass 2]:
+                                <span className="text-green-600 ml-2 font-bold">Approved({fixingActionStats.approvedP2})</span>,
+                                <span className="text-slate-500 ml-2 font-bold">Rejected({fixingActionStats.rejectedP2})</span>,
+                                <span className="text-amber-600 ml-2 font-bold">Pending({fixingActionStats.pendingP2})</span>
+                            </div>
                         </div>
                     )}
-                    <div className="text-slate-600 bg-indigo-50 px-3 py-1.5 rounded border border-indigo-200 shadow-sm flex items-center">
-                        Fixing Action:
-                        <span className="text-green-600 ml-2 font-bold">Approved({fixingActionStats.approved})</span>,
-                        <span className="text-slate-500 ml-2 font-bold">Rejected({fixingActionStats.rejected})</span>,
-                        <span className="text-amber-600 ml-2 font-bold">Pending({fixingActionStats.pending})</span>
-                    </div>
                 </>
             )}
         </div>

@@ -26,13 +26,14 @@ export function runDataProcessor(dataTable, config, logger) {
     let extractedRefNo = null;
     let extractedSeqNo = null;
     if (row.text && typeof row.text === 'string') {
-         const textUpper = row.text.toUpperCase();
-         // e.g. "RefNo:=67130482/1666_pipe" or "REF NO.: 123"
-         const refMatch = row.text.match(/(?:RefNo|REF\s*NO\.?)\s*[:=]\s*=?([^\s,]+)/i);
+         // Handle cases like RefNo:=67130482/1666_pipe
+         // Or RefNo: 67130482/1666_pipe
+         const refMatch = row.text.match(/(?:RefNo|REF\s*NO\.?)\s*[:=]+\s*([^\s,]+)/i);
          if (refMatch && refMatch[1]) extractedRefNo = refMatch[1].trim();
 
-         const seqMatch = textUpper.match(/SEQ\s*NO\.?\s*[:=]\s*=?(\d+)/i);
-         if (seqMatch && seqMatch[1]) extractedSeqNo = parseInt(seqMatch[1], 10);
+         // Handle SeqNo:27.1, SeqNo:=5, etc.
+         const seqMatch = row.text.match(/(?:SeqNo|SEQ\s*NO\.?)\s*[:=]+\s*([0-9.]+)/i);
+         if (seqMatch && seqMatch[1]) extractedSeqNo = parseFloat(seqMatch[1]);
     }
 
     if (extractedSeqNo && !row.csvSeqNo) {

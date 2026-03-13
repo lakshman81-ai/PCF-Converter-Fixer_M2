@@ -43,10 +43,18 @@ export function StatusBar() {
     const logger = createLogger();
     const result = runSmartFix(state.stage2Data, state.config, logger);
 
+    let errorFixes = 0;
+    let warnFixes = 0;
+
     // Save logs to state
-    logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
+    logger.getLog().forEach(entry => {
+         dispatch({ type: "ADD_LOG", payload: entry });
+         if (entry.tier && entry.tier <= 2) errorFixes++;
+         if (entry.tier && entry.tier === 3) warnFixes++;
+    });
 
     dispatch({ type: "SMART_FIX_COMPLETE", payload: result });
+    alert(`Smart Fix Analysis Complete:\n- ${errorFixes} Auto-Fixes Proposed (Tier 1/2)\n- ${warnFixes} Warnings/Proposals (Tier 3) requiring review.`);
   };
 
   const handleApplyFixes = () => {
@@ -94,8 +102,9 @@ export function StatusBar() {
   const handleExecute = () => {
       setShowModal(false);
       const logger = createLogger();
+      // Only process geometry parsing and V15 validation (Stage 2) here
       let processedTable = runDataProcessor(state.stage2Data, state.config, logger);
-      runValidationChecklist(processedTable, state.config, logger);
+      runValidationChecklist(processedTable, state.config, logger, "2");
 
       if (runGroup === 'group2') {
           // Pass data table through PcfTopologyGraph_2
@@ -161,8 +170,8 @@ export function StatusBar() {
         <button
           onClick={() => {
             const logger = createLogger();
-            const processedTable = runDataProcessor(state.dataTable, state.config, logger);
-            runValidationChecklist(processedTable, state.config, logger);
+            const processedTable = runDataProcessor(state.stage2Data, state.config, logger);
+            runValidationChecklist(processedTable, state.config, logger, "2"); // Pass "2" to isolate V15
             logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
 
             logger.getLog().forEach(entry => {
@@ -175,7 +184,7 @@ export function StatusBar() {
                 }
               }
             });
-            dispatch({ type: "SET_DATA_TABLE", payload: processedTable });
+            dispatch({ type: "SET_STAGE_2_DATA", payload: processedTable });
             setZustandData(processedTable);
 
             // intercept to show modal instead
