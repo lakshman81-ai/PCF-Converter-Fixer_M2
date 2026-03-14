@@ -153,7 +153,7 @@ function runBenchmark(file) {
     // Auto-Approve all proposals
     proposals.forEach(p => p._fixApproved = true);
 
-    const updatedTable = applyApprovedMutations(dataTable, proposals, logger);
+    const updatedTable = applyApprovedMutations(dataTable, proposals, logger, config);
 
     console.log(`[APPLY] FixApplicator applied changes.`);
 
@@ -234,6 +234,31 @@ function evaluateAccuracy(file, finalTable) {
     if (file === 'BM6_MissingRVAssembly.pcf') {
         const synthValves = finalTable.filter(r => r.type === "VALVE" && r._isSynthetic);
         assertEq("BM6: 2 Synthetic Valves Injected", synthValves.length, 2);
+    }
+
+    if (file === 'BM_P1_Gaps_Overlaps.pcf') {
+        const gapPipe = finalTable.find(r => r._isSynthetic && r.type === "PIPE");
+        assertExists("New_BM1: Synthetic spool injected for 1000mm gap", gapPipe);
+
+        // Foldback check
+        const hasFoldback = finalTable.find(r => r.type === "PIPE" && Math.abs(r.ep1.x - r.ep2.x) === 0 && Math.abs(r.ep1.y - r.ep2.y) === 0);
+        assertEq("New_BM1: Foldback pipe handled (deleted/merged)", hasFoldback !== undefined, false);
+    }
+
+    if (file === 'BM_P1_HugeSkews_Missing.pcf') {
+        const synthTee = finalTable.find(r => r.type === "TEE" && r._isSynthetic);
+        assertExists("New_BM2: Missing TEE synthesized", synthTee);
+
+        const synthOlet = finalTable.find(r => r.type === "OLET" && r._isSynthetic);
+        assertExists("New_BM2: Missing OLET synthesized", synthOlet);
+    }
+
+    if (file === 'BM_P2_Fittings_MissingValves.pcf') {
+        const gasket = finalTable.find(r => r.type === "GASKET" && r._isSynthetic);
+        assertExists("New_BM3: Missing Gasket injected for 3mm gap", gasket);
+
+        const spool = finalTable.find(r => r.type === "PIPE" && r._isSynthetic && r.len1 && r.len1 < 100);
+        assertExists("New_BM3: Missing small spool injected for 50mm flange gap", spool);
     }
 
     console.log(`[RESULT] Passed: ${passed}, Failed: ${failed}`);

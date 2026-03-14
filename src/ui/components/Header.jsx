@@ -17,7 +17,8 @@ export function Header() {
       dispatch({ type: "ADD_LOG", payload: { type: "Info", message: `Successfully imported ${parsedData.length} rows from ${file.name}` }});
     } catch (err) {
       dispatch({ type: "ADD_LOG", payload: { type: "Error", message: `Failed to import file: ${err.message}` }});
-      alert(`Error importing file: ${err.message}`);
+      dispatch({ type: "SET_STATUS_MESSAGE", payload: `Error importing file: ${err.message}` });
+      setTimeout(() => dispatch({ type: "SET_STATUS_MESSAGE", payload: null }), 6000);
     }
     e.target.value = null;
   };

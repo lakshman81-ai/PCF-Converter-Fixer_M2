@@ -165,14 +165,16 @@ export function DataTableTab({ stage = "1" }) {
        if (stage === "2") window.dispatchEvent(new CustomEvent('zustand-force-sync'));
 
        const alertLines = [];
-       if (updatedItems.bore > 0) alertLines.push(`- Bores Inherited: ${updatedItems.bore}`);
-       if (updatedItems.boreFb > 0) alertLines.push(`- Pipe Bore Fallbacks: ${updatedItems.boreFb}`);
-       if (updatedItems.cp > 0) alertLines.push(`- TEE Midpoints (CP): ${updatedItems.cp}`);
-       if (updatedItems.delta > 0) alertLines.push(`- Axis Deltas (dx,dy,dz): ${updatedItems.delta}`);
-       if (updatedItems.len > 0) alertLines.push(`- Lengths/Axis: ${updatedItems.len}`);
-       if (updatedItems.ptr > 0) alertLines.push(`- Reference Pointers: ${updatedItems.ptr}`);
+       if (updatedItems.bore > 0) alertLines.push(`Bores: ${updatedItems.bore}`);
+       if (updatedItems.boreFb > 0) alertLines.push(`Pipe Fallbacks: ${updatedItems.boreFb}`);
+       if (updatedItems.cp > 0) alertLines.push(`TEE CPs: ${updatedItems.cp}`);
+       if (updatedItems.delta > 0) alertLines.push(`Deltas: ${updatedItems.delta}`);
+       if (updatedItems.len > 0) alertLines.push(`Lengths/Axis: ${updatedItems.len}`);
+       if (updatedItems.ptr > 0) alertLines.push(`Ptrs: ${updatedItems.ptr}`);
 
-       alert(`Missing Geometry Check Complete:\n${alertLines.length > 0 ? alertLines.join('\n') : "No missing basic geometry found."}`);
+       const msg = alertLines.length > 0 ? `Missing Geo Check: Calculated ${alertLines.join(', ')}` : "Missing Geo Check: No missing geometry found.";
+       dispatch({ type: "SET_STATUS_MESSAGE", payload: msg });
+       setTimeout(() => dispatch({ type: "SET_STATUS_MESSAGE", payload: null }), 5000);
   };
 
   const handlePullStage1 = () => {
@@ -187,7 +189,8 @@ export function DataTableTab({ stage = "1" }) {
           return newRow;
       });
       dispatch({ type: "SET_STAGE_2_DATA", payload: stage1Data });
-      alert("Successfully pulled Stage 1 data into Stage 2.");
+      dispatch({ type: "SET_STATUS_MESSAGE", payload: "Successfully pulled Stage 1 data into Stage 2." });
+      setTimeout(() => dispatch({ type: "SET_STATUS_MESSAGE", payload: null }), 5000);
   };
 
   const handleSyntaxFix = () => {
@@ -213,7 +216,8 @@ export function DataTableTab({ stage = "1" }) {
           return newRow;
       });
       dispatch({ type: "SET_DATA_TABLE", payload: updatedTable });
-      alert(`Syntax Fix Complete:\n- Capitalization Fixed: ${capsFixed}\n- Exact (0,0,0) points cleared: ${zeroFixed}`);
+      dispatch({ type: "SET_STATUS_MESSAGE", payload: `Syntax Fix Complete: Caps Fixed (${capsFixed}), (0,0,0) cleared (${zeroFixed})` });
+      setTimeout(() => dispatch({ type: "SET_STATUS_MESSAGE", payload: null }), 5000);
   };
 
   const handleValidateSyntax = () => {
@@ -245,8 +249,9 @@ export function DataTableTab({ stage = "1" }) {
       if (stage === "2") dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
       if (stage === "3") dispatch({ type: "SET_STAGE_3_DATA", payload: updatedTable });
 
-      const summaryText = Object.entries(ruleCounts).map(([rule, count]) => `${rule} (${count})`).join(', ');
-      alert(`Validation Complete:\n- ${results.errorCount} Errors\n- ${results.warnCount} Warnings\nFound: ${summaryText || 'None'}`);
+      const summaryText = Object.entries(ruleCounts).map(([rule, count]) => `${rule}(${count})`).join(', ');
+      dispatch({ type: "SET_STATUS_MESSAGE", payload: `Validation Complete: ${results.errorCount} Errors, ${results.warnCount} Warnings. Rules: ${summaryText || 'None'}` });
+      setTimeout(() => dispatch({ type: "SET_STATUS_MESSAGE", payload: null }), 5000);
   };
 
   const fixingActionStats = React.useMemo(() => {
@@ -513,7 +518,8 @@ export function DataTableTab({ stage = "1" }) {
                                 await exportToExcel(dataTable);
                                 dispatch({ type: "ADD_LOG", payload: { type: "Info", message: "Exported Data Table to Excel." }});
                             } catch (err) {
-                                alert("Error exporting Excel: " + err.message);
+                                dispatch({ type: "SET_STATUS_MESSAGE", payload: "Error exporting Excel: " + err.message });
+                                setTimeout(() => dispatch({ type: "SET_STATUS_MESSAGE", payload: null }), 6000);
                             }
                         }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded text-xs font-bold border border-slate-900 transition-all shadow-sm ml-2">
                             Export Data Table ↓

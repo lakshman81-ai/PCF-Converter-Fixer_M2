@@ -170,8 +170,16 @@ export function ConfigTab() {
 
         {/* Core Geometry Thresholds */}
         <div className="bg-slate-50 p-4 rounded border border-slate-200 shadow-sm">
-          <h3 className="font-semibold text-slate-700 mb-3">Geometry Thresholds (mm)</h3>
+          <h3 className="font-semibold text-slate-700 mb-3">Geometry & Heuristics Thresholds</h3>
           <div className="space-y-3">
+            <div className="flex justify-between items-center bg-blue-50/50 p-2 rounded">
+              <label className="text-sm text-blue-800 font-medium">Enable Pass 3A (Complex Synthesis)</label>
+              <input type="checkbox" checked={localConfig.smartFixer.enablePass3A !== false} onChange={(e) => updateSmartFixer('enablePass3A', e.target.checked)} className="w-5 h-5 text-blue-600 bg-white border-slate-300 rounded" />
+            </div>
+            <div className="flex justify-between items-center bg-blue-50/50 p-2 rounded">
+              <label className="text-sm text-blue-800 font-medium">Min Topology Approval Score</label>
+              <input type="number" step="1" value={localConfig.smartFixer.minApprovalScore ?? 10} onChange={(e) => updateSmartFixer('minApprovalScore', parseFloat(e.target.value))} className="w-24 p-1 border rounded text-right text-sm font-mono" title="Threshold for proposing fixes. Drops below this score."/>
+            </div>
             <div className="flex justify-between items-center">
               <label className="text-sm text-slate-600">Micro-Pipe Deletion Threshold (mm)</label>
               <input type="number" step="0.1" value={localConfig.smartFixer.microPipeThreshold} onChange={(e) => updateSmartFixer('microPipeThreshold', e.target.value)} className="w-24 p-1 border rounded text-right text-sm font-mono" />

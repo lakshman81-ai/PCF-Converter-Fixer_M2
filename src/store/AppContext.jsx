@@ -35,6 +35,14 @@ const initialState = {
       autoTrimMaxOverlap: 25.0,
       silentSnapThreshold: 2.0,
       warnSnapThreshold: 10.0,
+      enablePass3A: true,
+      minApprovalScore: 10,
+      weights: {
+        lineKey: 10,
+        sizeRatio: 5,
+        elementalAxis: 3,
+        globalAxis: 2
+      },
       autoDeleteFoldbackMax: 25.0,
       offAxisThreshold: 0.5,
       diagonalMinorThreshold: 2.0,
@@ -86,6 +94,8 @@ function reducer(state, action) {
       return { ...state, log: [...state.log, action.payload] };
     case "CLEAR_LOG":
       return { ...state, log: [] };
+    case "SET_STATUS_MESSAGE":
+      return { ...state, statusMessage: action.payload };
     case "SET_SMART_FIX_STATUS":
       return { ...state, smartFix: { ...state.smartFix, status: action.status } };
     case "SMART_FIX_COMPLETE":

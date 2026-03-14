@@ -54,7 +54,8 @@ export function StatusBar() {
     });
 
     dispatch({ type: "SMART_FIX_COMPLETE", payload: result });
-    alert(`Smart Fix Analysis Complete:\n- ${errorFixes} Auto-Fixes Proposed (Tier 1/2)\n- ${warnFixes} Warnings/Proposals (Tier 3) requiring review.`);
+    dispatch({ type: "SET_STATUS_MESSAGE", payload: `Analysis Complete: ${errorFixes} Auto-Fixes (T1/2), ${warnFixes} Warnings (T3)` });
+    setTimeout(() => dispatch({ type: "SET_STATUS_MESSAGE", payload: null }), 6000);
   };
 
   const handleApplyFixes = () => {
@@ -128,7 +129,8 @@ export function StatusBar() {
       });
       dispatch({ type: "SET_STAGE_2_DATA", payload: processedTable });
       setZustandData(processedTable);
-      alert("Processing & Validation complete! Check Debug tab and Data Table for results.");
+      dispatch({ type: "SET_STATUS_MESSAGE", payload: "Processing & Validation complete!" });
+      setTimeout(() => dispatch({ type: "SET_STATUS_MESSAGE", payload: null }), 5000);
   };
 
   return (
@@ -166,7 +168,31 @@ export function StatusBar() {
 
     <div className="fixed bottom-0 left-0 right-0 h-12 bg-slate-800 text-white flex items-center justify-between px-4 text-sm z-50">
       <div className="flex items-center space-x-4">
-        <span className="text-slate-300">Ready</span>
+        <span className="text-slate-300 mr-2 max-w-[400px] truncate" title={state.statusMessage || "Ready"}>
+            {state.statusMessage || "Ready"}
+        </span>
+
+        {(!state.dataTable || state.dataTable.length === 0) && (
+            <button
+                onClick={() => {
+                  const mockData = [
+                    { _rowIndex: 1, type: "PIPE", ep1: {x: 0, y: 0, z: 0}, ep2: {x: 1000, y: 0, z: 0}, bore: 100 },
+                    { _rowIndex: 2, type: "PIPE", ep1: {x: 1005, y: 0, z: 0}, ep2: {x: 2000, y: 0, z: 0}, bore: 100 },
+                    { _rowIndex: 3, type: "TEE", ep1: {x: 2000, y: 0, z: 0}, ep2: {x: 2300, y: 0, z: 0}, cp: {x: 2150, y: 0, z: 0}, bp: {x: 2150, y: 150, z: 0}, bore: 100, branchBore: 50 },
+                    { _rowIndex: 4, type: "PIPE", ep1: {x: 2300, y: 0, z: 0}, ep2: {x: 3000, y: 0, z: 0}, bore: 100 },
+                    { _rowIndex: 5, type: "PIPE", ep1: {x: 2980, y: 0, z: 0}, ep2: {x: 4000, y: 0, z: 0}, bore: 100 },
+                    { _rowIndex: 6, type: "PIPE", ep1: {x: 2150, y: 150, z: 0}, ep2: {x: 2150, y: 154, z: 0}, bore: 50 },
+                    { _rowIndex: 7, type: "VALVE", ep1: {x: 2150, y: 154, z: 0}, ep2: {x: 2150, y: 354, z: 0}, bore: 50, skey: "VBFL" },
+                  ];
+                  dispatch({ type: "SET_DATA_TABLE", payload: mockData });
+                  useStore.getState().setDataTable(mockData);
+                }}
+                className="px-2 py-1 bg-indigo-900/50 hover:bg-indigo-800 text-indigo-300 rounded text-xs transition border border-indigo-700/50"
+            >
+              Load Mock Test Data
+            </button>
+        )}
+
         <button
           onClick={() => {
             const logger = createLogger();
