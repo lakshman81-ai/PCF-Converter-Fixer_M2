@@ -107,7 +107,7 @@ export function StatusBar({ activeTab, activeStage }) {
     const pass2Table = state.stage2Data.map(r => ({ ...r, _currentPass: 2 }));
     
     if (runGroup === 'group2') {
-        const { proposals } = PcfTopologyGraph2(pass2Table, state.config, logger);
+        const { proposals } = PcfTopologyGraph2(pass2Table, { ...state.config, currentPass: 2 }, logger);
         setZustandProposals(proposals);
         logger.getLog().forEach(entry => {
              dispatch({ type: "ADD_LOG", payload: entry });

@@ -414,25 +414,38 @@ export function DataTableTab({ stage = "1" }) {
          }
     }
 
+    if (actionMsg) {
+        // Remove existing standard score patterns e.g. (Score: 10)
+        actionMsg = actionMsg.replace(/\(Score:\s*[\d.]+\)/g, '').trim();
+        // Catch inline 'Score 8' format that was persisting
+        actionMsg = actionMsg.replace(/score\s*[\d.]+\s*/gi, '').trim();
+        actionMsg = actionMsg.replace(/^\[Pass\s*\w+\]\s*/i, '').trim();
+        const splitIdx = actionMsg.indexOf(':');
+        if (splitIdx > -1 && splitIdx < 30) {
+            actionMsg = actionMsg.substring(splitIdx + 1).trim();
+        }
+    }
+
     const passPrefix = row._passApplied === 2 ? "[2nd Pass]" : "[1st Pass]";
 
     return (
       <div className={`${colors.bg} ${colors.text} border-l-4 ${colors.border} p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap rounded-r shadow-sm min-w-[280px]`}>
-        <div className="font-semibold mb-1">
-             {stage !== "1" && <span className="text-slate-600 mr-1">{passPrefix}</span>}
-             {validationMsg}
+        <div className="font-semibold mb-1 flex items-start">
+             {stage !== "1" && <span className="text-slate-600 mr-1 whitespace-nowrap">{passPrefix}</span>}
+             <span className="flex-1">
+                 {validationMsg && stage !== "1" && <span className="text-slate-500 mr-1 font-bold">[Issue]</span>}
+                 {validationMsg}
+             </span>
         </div>
         {actionMsg && (
             <div className={`mt-1 pl-2 border-l-2 ${row._passApplied > 0 ? 'border-green-400 text-green-800' : 'border-amber-400 text-amber-800'}`}>
                  <span className="font-bold mr-1">{row._passApplied > 0 ? "[Action Taken]" : "[Proposal]"}</span>
-                 {row.fixingActionScore !== undefined && (
-                     <span className={`text-[10px] font-semibold mr-1 px-1 rounded ${row.fixingActionScore >= 10 ? 'text-green-700 bg-green-100' : 'text-orange-700 bg-orange-100'}`}>
-                         Score {row.fixingActionScore}
-                     </span>
-                 )}
                  <span className={row._fixApproved === false ? "line-through opacity-70" : ""}>{actionMsg}</span>
                  {row._passApplied === undefined && row._fixApproved === true && !row._isPassiveFix && (
                     <div className="text-[10px] text-green-600 font-bold mt-1">✓ Approved</div>
+                 )}
+                 {row._passApplied === undefined && row._fixApproved === false && !row._isPassiveFix && (
+                    <div className="text-[10px] text-slate-500 font-bold mt-1">✓ Rejected</div>
                  )}
             </div>
         )}
@@ -441,8 +454,8 @@ export function DataTableTab({ stage = "1" }) {
                 <button onClick={() => handleApprove(row._rowIndex, true)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === true ? 'bg-green-100 text-green-800 border border-green-400 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}`}>✓ Approve</button>
                 <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === false ? 'bg-slate-200 text-slate-500 border border-slate-400 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}`}>✗ Reject</button>
                 {row.fixingActionScore !== undefined && row.fixingActionScore < 10 && (
-                    <span className="text-[10px] text-orange-600 ml-1 font-medium italic" title="This suggestion scored too low and was dropped">
-                        Score {row.fixingActionScore} &lt; 10
+                    <span className="text-[10px] text-slate-500 ml-1 font-medium italic" title="This suggestion scored too low and was dropped">
+                        (Score &lt; 10)
                     </span>
                 )}
             </div>
