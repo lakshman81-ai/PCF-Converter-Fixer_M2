@@ -159,7 +159,7 @@ const ProposalOverlay = ({ proposal }) => {
   const setTable = useStore(state => state.setDataTable);
   const { state: appState, dispatch } = useAppContext();
 
-  const { elementA, elementB, description, _fixApproved } = proposal;
+  const { elementA, elementB, description, _fixApproved, ptA, ptB } = proposal;
 
   const handleApproveAndMutate = (e) => {
       e.stopPropagation();
@@ -191,10 +191,14 @@ const ProposalOverlay = ({ proposal }) => {
       setClicked(false);
   };
 
-  if (!elementA.ep2 || !elementB.ep1) return null;
+  // Default to ep2/ep1 if ptA/ptB aren't explicitly provided by engine
+  const pointA = ptA || elementA.ep2 || elementA.ep1;
+  const pointB = ptB || elementB.ep1 || elementB.ep2;
 
-  const vecA = new THREE.Vector3(elementA.ep2.x, elementA.ep2.y, elementA.ep2.z);
-  const vecB = new THREE.Vector3(elementB.ep1.x, elementB.ep1.y, elementB.ep1.z);
+  if (!pointA || !pointB) return null;
+
+  const vecA = new THREE.Vector3(pointA.x, pointA.y, pointA.z);
+  const vecB = new THREE.Vector3(pointB.x, pointB.y, pointB.z);
   const distance = vecA.distanceTo(vecB);
 
   const midPoint = vecA.clone().lerp(vecB, 0.5);
@@ -301,17 +305,17 @@ const IssuesPanel = () => {
     const { state: appState, dispatch } = useAppContext();
 
     const handleFocusIssue = (prop) => {
-        if (!prop.elementA || !prop.elementA.ep2) return;
-        const x = prop.elementA.ep2.x;
-        const y = prop.elementA.ep2.y;
-        const z = prop.elementA.ep2.z;
-        window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x, y, z, dist: 1500 } }));
+        if (!prop.elementA || (!prop.elementA.ep2 && !prop.elementA.ep1)) return;
+        const pt = prop.elementA.ep2 || prop.elementA.ep1;
+        useStore.getState().setSelected(prop.elementA._rowIndex);
+        window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x: pt.x, y: pt.y, z: pt.z, dist: 1500 } }));
     };
 
     const handleFocusRow = (e, row) => {
         e.stopPropagation();
-        if (!row.ep2 && !row.cp) return;
-        const pt = row.ep2 || row.cp;
+        if (!row.ep2 && !row.cp && !row.ep1) return;
+        const pt = row.ep2 || row.cp || row.ep1;
+        useStore.getState().setSelected(row._rowIndex);
         window.dispatchEvent(new CustomEvent('canvas-focus-point', { detail: { x: pt.x, y: pt.y, z: pt.z, dist: 1500 } }));
     };
 

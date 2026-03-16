@@ -116,7 +116,9 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                     score,
                     vector: vec.sub(ptB, ptA),
                     description,
-                    pass: "Pass 1"
+                    pass: "Pass 1",
+                    ptA,
+                    ptB
                 });
 
                 logger.push({ stage: "FIXING", type: tier === 4 ? "Error" : "Fix", tier, row: A._rowIndex, message: description, score });
@@ -136,9 +138,15 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                 const ptA1 = getEntryPoint(A), ptA2 = getExitPoint(A);
                 const ptB1 = getEntryPoint(B), ptB2 = getExitPoint(B);
 
+                // Collect only endpoints that are likely "open"
+                // A very simplified approach: we look for minimal distance between ANY open endpoints
+                // To avoid finding connections parallel to the existing pipe length (which caused the component length bug),
+                // we should ensure the endpoints aren't already sequentially connected in Pass 1.
+                // Or simply find the closest pair. The previous code found the closest pair:
+
                 const pairs = [
-                    {a: ptA1, b: ptB1}, {a: ptA1, b: ptB2}, 
-                    {a: ptA2, b: ptB1}, {a: ptA2, b: ptB2}
+                    {a: ptA1, b: ptB1, aDesc: 'ep1', bDesc: 'ep1'}, {a: ptA1, b: ptB2, aDesc: 'ep1', bDesc: 'ep2'},
+                    {a: ptA2, b: ptB1, aDesc: 'ep2', bDesc: 'ep1'}, {a: ptA2, b: ptB2, aDesc: 'ep2', bDesc: 'ep2'}
                 ].filter(p => p.a && p.b);
 
                 let minPair = null, minDist = Infinity;
@@ -147,6 +155,9 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                     if (d > 0 && d < minDist) { minDist = d; minPair = pair; }
                 }
 
+                // Extra safety: make sure A and B aren't actually part of the same continuous segment
+                // that simply loops back or is parallel, which might cause false positives.
+                // We check if the minimum distance is actually forming a bridge, not overlapping components.
                 if (minDist > 0 && minDist < 6000) {
                      const dx = Math.abs(minPair.a.x - minPair.b.x);
                      const dy = Math.abs(minPair.a.y - minPair.b.y);
@@ -155,12 +166,27 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                      const others = dx + dy + dz - maxDev;
 
                      if (others < 5) {
+                         // Check if this pair (A, B) already has a proposal from Pass 1
+                         const existingProp = proposals.find(p => (p.elementA === A && p.elementB === B) || (p.elementA === B && p.elementB === A));
+                         if (existingProp) continue;
+
+                         // FIX: Prevent "Component Length" Bug
+                         // If we are looking at two components that are completely parallel and overlapping
+                         // we might just be calculating the distance between A.ep1 and B.ep1 (which could be the component length if they overlap).
+                         // Let's ensure the gap doesn't span *across* the physical body of either component.
+                         // Or simply, we should only connect endpoints that are actually "open" (not connected to anything else).
+                         // Since we don't have a full graph here, we will just ensure `minDist` is not exactly the length of A or B.
+                         const lenA = A.ep1 && A.ep2 ? vec.dist(A.ep1, A.ep2) : 0;
+                         const lenB = B.ep1 && B.ep2 ? vec.dist(B.ep1, B.ep2) : 0;
+                         if (Math.abs(minDist - lenA) < 5 || Math.abs(minDist - lenB) < 5) continue;
+
                          let score = weights.globalAxis + (A.bore && B.bore && (A.bore/B.bore >= 0.5 && A.bore/B.bore <= 2.0) ? weights.sizeRatio : 0);
                          const description = `[Pass 2] [Issue] Non-sequential gap of ${minDist.toFixed(1)}mm detected.\n[Proposal] Inject PIPE bridging ${minDist.toFixed(1)}mm.`;
                          const tier = score < minApprovalScore ? 4 : 3;
 
                          proposals.push({
-                            elementA: A, elementB: B, fixType: 'GAP_FILL', dist: minDist, score, vector: vec.sub(minPair.b, minPair.a), description, pass: "Pass 2"
+                            elementA: A, elementB: B, fixType: 'GAP_FILL', dist: minDist, score, vector: vec.sub(minPair.b, minPair.a), description, pass: "Pass 2",
+                            ptA: minPair.a, ptB: minPair.b
                          });
                          logger.push({ stage: "FIXING", type: tier === 4 ? "Error" : "Fix", tier, row: A._rowIndex, message: description, score });
                      }
