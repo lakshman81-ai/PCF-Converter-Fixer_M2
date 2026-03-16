@@ -175,6 +175,26 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
             if (comp.bp)  allPoints.push({ comp, pt: comp.bp,  type: 'bp',  id: `Row${comp._rowIndex}_BP`  });
         }
 
+        // Propagate _IssueListed based on exact coordinate matching (topology)
+        // If an element is _IssueListed from Pass 1, any component sharing its EXACT coordinates gets flagged too.
+        let propagated = true;
+        while (propagated) {
+            propagated = false;
+            for (const p1 of allPoints) {
+                if (!p1.comp._IssueListed) continue;
+                // p1's component IS listed. Check all other points for coordinate match.
+                for (const p2 of allPoints) {
+                    if (p1.comp._rowIndex === p2.comp._rowIndex) continue;
+                    if (p2.comp._IssueListed) continue;
+
+                    if (vec.dist(p1.pt, p2.pt) <= 1.0) {
+                        p2.comp._IssueListed = true;
+                        propagated = true;
+                    }
+                }
+            }
+        }
+
         const openEndpoints = [];
         for (const p1 of allPoints) {
             // Skip points belonging to components that already have a pending/approved Pass 1 issue.
@@ -184,7 +204,6 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
             if (p1.type === 'bp') continue;
 
             let isClosed = false;
-            let hasNeighbor = false;
 
             for (const p2 of allPoints) {
                 if (p1.comp._rowIndex === p2.comp._rowIndex) continue;
@@ -193,11 +212,9 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                     isClosed = true;
                     break;
                 }
-                if (distance < 50) {
-                    hasNeighbor = true; // Avoid false positives (like the 1980mm gap) if there's a nearby component likely intended to connect
-                }
             }
-            if (!isClosed && !hasNeighbor) {
+
+            if (!isClosed) {
                 openEndpoints.push(p1);
             }
         }
