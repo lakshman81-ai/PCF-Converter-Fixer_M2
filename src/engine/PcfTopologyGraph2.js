@@ -134,9 +134,9 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
         // An endpoint is "closed" if it is <= 1mm from ANY other component's endpoint or branch point.
         const allPoints = [];
         for (const comp of physicals) {
-            if (comp.ep1) allPoints.push({ comp, pt: comp.ep1, type: 'ep1' });
-            if (comp.ep2) allPoints.push({ comp, pt: comp.ep2, type: 'ep2' });
-            if (comp.bp)  allPoints.push({ comp, pt: comp.bp,  type: 'bp' });
+            if (comp.ep1) allPoints.push({ comp, pt: comp.ep1, type: 'ep1', id: `Row${comp._rowIndex}_EP1` });
+            if (comp.ep2) allPoints.push({ comp, pt: comp.ep2, type: 'ep2', id: `Row${comp._rowIndex}_EP2` });
+            if (comp.bp)  allPoints.push({ comp, pt: comp.bp,  type: 'bp',  id: `Row${comp._rowIndex}_BP`  });
         }
 
         const openEndpoints = [];
@@ -146,7 +146,7 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
 
             let isClosed = false;
             for (const p2 of allPoints) {
-                if (p1.comp === p2.comp) continue;
+                if (p1.comp._rowIndex === p2.comp._rowIndex) continue;
                 if (vec.dist(p1.pt, p2.pt) <= 1.0) {
                     isClosed = true;
                     break;
@@ -165,7 +165,8 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                 const A = epA.comp;
                 const B = epB.comp;
 
-                if (A === B) continue;
+                // Use the explicit Rowx check to strictly skip identical rows
+                if (A._rowIndex === B._rowIndex) continue;
 
                 const dist = vec.dist(epA.pt, epB.pt);
 

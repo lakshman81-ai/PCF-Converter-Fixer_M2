@@ -104,12 +104,14 @@ export function StatusBar({ activeTab, activeStage }) {
   const isValidationDone = state.smartFix.validationDone === true;
   const isRunning = state.smartFix.status === "running";
   const isApplying = state.smartFix.status === "applying";
-  // Second Pass ready once at least one Apply Fixes has completed
-  const isSecondPassReady = (state.smartFix.smartFixPass || 0) >= 1 && !isRunning && !isApplying;
 
   // Smart Fix should be disabled once clicked, unless we reset it.
   // We can track if the smartFixPass > 0 (meaning a pass was run) and disable the main Smart Fix button.
   const hasRunSmartFix = (state.smartFix.smartFixPass || 0) > 0;
+
+  // Second Pass ready once Smart Fix (Pass 1) has been run, regardless of Apply Fixes.
+  const isSecondPassReady = hasRunSmartFix && !isRunning && !isApplying;
+
   const canRunSmartFix = isDataLoaded && !isRunning && isValidationDone && !hasRunSmartFix;
 
   // Apply Fixes enabled if any row approved and not currently applying
@@ -119,7 +121,18 @@ export function StatusBar({ activeTab, activeStage }) {
   const handleSecondPass = () => {
     dispatch({ type: "SET_SMART_FIX_STATUS", status: "running" });
     const logger = createLogger();
-    const pass2Table = state.stage2Data.map(r => ({ ...r, _currentPass: 2 }));
+    // Clear out prior fixingAction warnings/proposals from Pass 1 to give a clean slate for Pass 2
+    const pass2Table = state.stage2Data.map(r => {
+        const cleanRow = { ...r, _currentPass: 2 };
+        if (cleanRow._fixApproved === undefined || cleanRow._fixApproved === false) {
+             // Only clear out unapproved/rejected fixingActions (don't clear applied fixes history if we want to keep them)
+             delete cleanRow.fixingAction;
+             delete cleanRow.fixingActionTier;
+             delete cleanRow.fixingActionScore;
+             delete cleanRow._fixApproved;
+        }
+        return cleanRow;
+    });
     
     if (runGroup === 'group2') {
         const { proposals } = PcfTopologyGraph2(pass2Table, { ...state.config, currentPass: 2 }, logger);
