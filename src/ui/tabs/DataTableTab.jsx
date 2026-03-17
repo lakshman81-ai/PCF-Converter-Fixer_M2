@@ -217,8 +217,11 @@ export function DataTableTab({ stage = "1" }) {
           if (isZero(newRow.bp)) { newRow.bp = null; zeroFixed++; actionsTaken.push("BP (0,0,0)"); }
           
           if (actionsTaken.length > 0) {
-               if (r.fixingAction) {
+               if (r.fixingAction && !r.fixingAction.includes('[Cleared]')) {
                    newRow.fixingAction = `${r.fixingAction} — [Cleared] ${actionsTaken.join(', ')}`;
+                   newRow.fixingActionTier = 1;
+               } else if (!r.fixingAction) {
+                   newRow.fixingAction = `[Cleared] ${actionsTaken.join(', ')}`;
                    newRow.fixingActionTier = 1;
                }
           }
@@ -402,48 +405,89 @@ export function DataTableTab({ stage = "1" }) {
     let validationMsg = row.fixingActionOriginalError || "";
     let actionMsg = row.fixingAction;
 
-    if (!row.fixingActionOriginalError && (row.fixingAction.includes('ERROR') || row.fixingAction.includes('WARNING') || row.fixingAction.includes('Syntax Check'))) {
+    // Check for our explicit multiline format: [Pass X] [Issue] ... \n[Proposal] ...
+    const hasExplicitTags = actionMsg.includes('[Issue]') && actionMsg.includes('[Proposal]');
+
+    if (hasExplicitTags) {
+        const parts = actionMsg.split('\n[Proposal]');
+        validationMsg = parts[0].replace(/^\[Pass\s*\w+\]\s*/i, '').replace('[Issue]', '').trim();
+        actionMsg = parts[1] ? parts[1].trim() : "";
+    } else if (!row.fixingActionOriginalError && (row.fixingAction.includes('ERROR') || row.fixingAction.includes('WARNING') || row.fixingAction.includes('Syntax Check'))) {
          // It's primarily a validation message or it hasn't been split yet
          if (row.fixingAction.includes('—')) {
              const parts = row.fixingAction.split('—');
              validationMsg = parts[0].trim();
              actionMsg = parts.slice(1).join('—').trim();
+
+             // Check if actionMsg duplicates validationMsg (e.g. Cleared message)
+             if (validationMsg.includes(actionMsg) || actionMsg.includes(validationMsg) || validationMsg.replace(/[^a-zA-Z0-9]/g, '') === actionMsg.replace(/[^a-zA-Z0-9]/g, '')) {
+                 actionMsg = ""; // Prevent duplication
+             }
          } else {
              validationMsg = row.fixingAction;
              actionMsg = "";
          }
     }
 
-    const passPrefix = row._passApplied === 2 ? "[2nd Pass]" : "[1st Pass]";
+    if (actionMsg) {
+        // Remove existing standard score patterns e.g. (Score: 10)
+        actionMsg = actionMsg.replace(/\(Score:\s*[\d.]+\)/g, '').trim();
+        // Catch inline 'Score 8 < 10' format that was persisting
+        actionMsg = actionMsg.replace(/Score\s*[\d.]+(\s*<\s*\d+)?/gi, '').trim();
+        // Catch any trailing [Pass X] that was persisting
+        actionMsg = actionMsg.replace(/\[Pass\s*\d+A?\]/gi, '').trim();
+        // Catch any trailing dots or dashes from previous replaces
+        actionMsg = actionMsg.replace(/^[-\s]+|[-\s]+$/g, '').trim();
+        if (!hasExplicitTags) {
+            actionMsg = actionMsg.replace(/^\[Pass\s*\w+\]\s*/i, '').trim();
+            const splitIdx = actionMsg.indexOf(':');
+            if (splitIdx > -1 && splitIdx < 30) {
+                actionMsg = actionMsg.substring(splitIdx + 1).trim();
+            }
+        }
+    }
+
+    let passPrefix = (row._passApplied === 2 || (row.fixingAction && row.fixingAction.includes('[Pass 2]'))) ? "[2nd Pass]" : "[1st Pass]";
+    if (row.fixingAction && row.fixingAction.includes('[Pass 3A]')) passPrefix = "[3rd Pass]";
+
+    // Final clean up for validationMsg
+    if (validationMsg) {
+        validationMsg = validationMsg.replace(/^\[Pass\s*\w+\]\s*/i, '').replace('[Issue]', '').trim();
+        // Catch trailing pass identifiers
+        validationMsg = validationMsg.replace(/\[Pass\s*\d+A?\]/gi, '').trim();
+    }
 
     return (
       <div className={`${colors.bg} ${colors.text} border-l-4 ${colors.border} p-2 font-mono text-xs leading-relaxed whitespace-pre-wrap rounded-r shadow-sm min-w-[280px]`}>
-        <div className="font-semibold mb-1">
-             {stage !== "1" && <span className="text-slate-600 mr-1">{passPrefix}</span>}
-             {validationMsg}
+        <div className="font-semibold mb-1 flex items-start flex-col">
+             {stage !== "1" && <span className="text-slate-600 mb-1 whitespace-nowrap">{passPrefix}</span>}
+             <div className="flex-1 w-full">
+                 {validationMsg && stage !== "1" && <span className="text-slate-500 mr-1 font-bold">[Issue]</span>}
+                 <span className="font-normal">{validationMsg}</span>
+             </div>
         </div>
         {actionMsg && (
-            <div className={`mt-1 pl-2 border-l-2 ${row._passApplied > 0 ? 'border-green-400 text-green-800' : 'border-amber-400 text-amber-800'}`}>
-                 <span className="font-bold mr-1">{row._passApplied > 0 ? "[Action Taken]" : "[Proposal]"}</span>
-                 {row.fixingActionScore !== undefined && (
-                     <span className={`text-[10px] font-semibold mr-1 px-1 rounded ${row.fixingActionScore >= 10 ? 'text-green-700 bg-green-100' : 'text-orange-700 bg-orange-100'}`}>
-                         Score {row.fixingActionScore}
-                     </span>
-                 )}
-                 <span className={row._fixApproved === false ? "line-through opacity-70" : ""}>{actionMsg}</span>
-                 {row._passApplied === undefined && row._fixApproved === true && !row._isPassiveFix && (
-                    <div className="text-[10px] text-green-600 font-bold mt-1">✓ Approved</div>
-                 )}
+            <div className={`mt-1`}>
+                 <span className="font-bold mr-1 text-slate-500">{row._passApplied > 0 ? "[Action Taken]" : "[Proposal]"}</span>
+                 <span className={`font-normal ${row._fixApproved === false ? "line-through opacity-70 text-blue-600" : ""}`}>{actionMsg}</span>
             </div>
         )}
-        {stage !== "1" && row._passApplied === undefined && !row._isPassiveFix && (
+        {stage !== "1" && row._passApplied === undefined && !row._isPassiveFix && actionMsg && (
              <div className="flex space-x-2 mt-2 items-center flex-wrap gap-y-1">
-                <button onClick={() => handleApprove(row._rowIndex, true)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === true ? 'bg-green-100 text-green-800 border border-green-400 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}`}>✓ Approve</button>
-                <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors ${row._fixApproved === false ? 'bg-slate-200 text-slate-500 border border-slate-400 font-semibold' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}`}>✗ Reject</button>
-                {row.fixingActionScore !== undefined && row.fixingActionScore < 10 && (
-                    <span className="text-[10px] text-orange-600 ml-1 font-medium italic" title="This suggestion scored too low and was dropped">
-                        Score {row.fixingActionScore} &lt; 10
-                    </span>
+                {row._fixApproved === true ? (
+                    <span className="text-green-600 font-bold flex items-center bg-green-50 px-2 py-1 rounded border border-green-200">✓ Approved</span>
+                ) : row._fixApproved === false ? (
+                    <span className="text-red-600 font-bold flex items-center bg-red-50 px-2 py-1 rounded border border-red-200">✗ Rejected</span>
+                ) : (
+                    <>
+                        <button onClick={() => handleApprove(row._rowIndex, true)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 flex items-center font-medium`}><span className="text-green-600 mr-1 font-bold">✓</span> Approve</button>
+                        <button onClick={() => handleApprove(row._rowIndex, false)} className={`px-2 py-1 text-xs rounded shadow-sm transition-colors bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 flex items-center font-medium`}><span className="text-red-600 mr-1 font-bold">✗</span> Reject</button>
+                        {row.fixingActionScore !== undefined && (
+                            <span className="text-[10px] text-slate-500 ml-1 font-medium" title="Topology Engine Score">
+                                (Score {Math.round(row.fixingActionScore)} {row.fixingActionScore < 10 ? '< 10' : ''})
+                            </span>
+                        )}
+                    </>
                 )}
             </div>
         )}

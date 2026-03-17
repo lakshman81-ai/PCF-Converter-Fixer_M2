@@ -44,7 +44,7 @@ export function ConfigTab() {
         <h3 className="font-semibold text-slate-700 mb-3 border-b pb-2">Validation Rules Checklist (V1-V24)</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
             {[
-              { id: 'V1', desc: 'No (0,0,0) coordinates' },
+              { id: 'V1', desc: 'Attempt to calculate (0,0,0) coordinates' },
               { id: 'V2', desc: 'Decimal consistency' },
               { id: 'V3', desc: 'Bore consistency' },
               { id: 'V4', desc: 'BEND CP != EP1' },
@@ -60,7 +60,7 @@ export function ConfigTab() {
               { id: 'V14', desc: 'Missing <SKEY>' },
               { id: 'V15', desc: 'Coordinate continuity' },
               { id: 'V16', desc: 'CA8 usage scope' },
-              { id: 'V17', desc: 'Reserved' },
+              { id: 'V17', desc: 'No EP should be blank or -' },
               { id: 'V18', desc: 'Bore unit (MM/Inch check)' },
               { id: 'V19', desc: 'SUPPORT MSG-SQ tokens' },
               { id: 'V20', desc: 'SUPPORT GUID Prefix (UCI:)' },
@@ -172,13 +172,20 @@ export function ConfigTab() {
         <div className="bg-slate-50 p-4 rounded border border-slate-200 shadow-sm">
           <h3 className="font-semibold text-slate-700 mb-3">Geometry & Heuristics Thresholds</h3>
           <div className="space-y-3">
-            <div className="flex justify-between items-center bg-blue-50/50 p-2 rounded">
-              <label className="text-sm text-blue-800 font-medium">Enable Pass 3A (Complex Synthesis)</label>
-              <input type="checkbox" checked={localConfig.smartFixer.enablePass3A !== false} onChange={(e) => updateSmartFixer('enablePass3A', e.target.checked)} className="w-5 h-5 text-blue-600 bg-white border-slate-300 rounded" />
+            <div className="flex flex-col bg-blue-50/50 p-2 rounded gap-1">
+              <div className="flex justify-between items-center">
+                  <label className="text-sm text-blue-800 font-medium">Enable Pass 3A (Complex Synthesis)</label>
+                  <input type="checkbox" checked={localConfig.smartFixer.enablePass3A !== false} onChange={(e) => updateSmartFixer('enablePass3A', e.target.checked)} className="w-5 h-5 text-blue-600 bg-white border-slate-300 rounded" />
+              </div>
             </div>
-            <div className="flex justify-between items-center bg-blue-50/50 p-2 rounded">
-              <label className="text-sm text-blue-800 font-medium">Min Topology Approval Score</label>
-              <input type="number" step="1" value={localConfig.smartFixer.minApprovalScore ?? 10} onChange={(e) => updateSmartFixer('minApprovalScore', parseFloat(e.target.value))} className="w-24 p-1 border rounded text-right text-sm font-mono" title="Threshold for proposing fixes. Drops below this score."/>
+            <div className="flex flex-col bg-blue-50/50 p-2 rounded gap-1">
+              <div className="flex justify-between items-center">
+                  <label className="text-sm text-blue-800 font-medium">Min Topology Approval Score</label>
+                  <input type="number" step="1" value={localConfig.smartFixer.minApprovalScore ?? 10} onChange={(e) => updateSmartFixer('minApprovalScore', parseFloat(e.target.value))} className="w-24 p-1 border rounded text-right text-sm font-mono" title="Threshold for proposing fixes. Drops below this score."/>
+              </div>
+              <p className="text-[10px] text-slate-500 italic mt-1 leading-tight">
+                <strong>Score Basis:</strong> The engine scores proposals from 0-100 based on weighted metrics: Line_Key Match (30%), Element Axis Alignment (25%), Pipeline Bore Ratio Continuity (25%), Global Sweeping Radius (10%), and Immutable Bounds (10%). Proposals scoring below this threshold are automatically dropped.
+              </p>
             </div>
             <div className="flex justify-between items-center">
               <label className="text-sm text-slate-600">Micro-Pipe Deletion Threshold (mm)</label>

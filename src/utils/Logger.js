@@ -9,7 +9,8 @@ export const createLogger = () => {
       ...entry,
     };
     log.push(logEntry);
-    console.log(`[${logEntry.stage}][${logEntry.type}]${logEntry.ruleId ? ` [${logEntry.ruleId}]` : ''} Row ${logEntry.row || 'N/A'}: ${logEntry.message}`);
+    const rowStr = logEntry.row && logEntry.row !== "-" ? ` Row ${logEntry.row}:` : "";
+    console.log(`[${logEntry.stage}][${logEntry.type}]${logEntry.ruleId ? ` [${logEntry.ruleId}]` : ''}${rowStr} ${logEntry.message}`);
   };
 
   const getLog = () => log;

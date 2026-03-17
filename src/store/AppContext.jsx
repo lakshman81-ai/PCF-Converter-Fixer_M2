@@ -10,14 +10,14 @@ const initialState = {
     enabledChecks: JSON.parse(localStorage.getItem('enabledValidationChecks')) || {
         V1: true, V2: true, V3: true, V4: true, V5: true,
         V6: true, V7: true, V8: true, V9: true, V10: true,
-        V11: true, V12: true, V13: true, V14: true, V15: true,
-        V16: true, V17: true, V18: true, V19: true, V20: true,
+        V11: true, V12: true, V13: false, V14: true, V15: true,
+        V16: true, V17: true, V18: true, V19: false, V20: true,
         V21: true, V22: true, V23: true, V24: true
     },
     pteMode: {
       autoMultiPassMode: true,
       sequentialMode: true,
-      lineKeyMode: true,
+      lineKeyMode: false,
       lineKeyColumn: "pipelineRef",
       boreRatioMin: 0.7,
       boreRatioMax: 1.5,
@@ -83,6 +83,17 @@ const initialState = {
 
 function reducer(state, action) {
   switch (action.type) {
+    case "RESET_ALL":
+      return {
+          ...state,
+          dataTable: [],
+          stage2Data: [],
+          stage3Data: [],
+          log: [],
+          history: [],
+          statusMessage: "Ready",
+          smartFix: { status: "idle", validationDone: false, smartFixPass: 0, graph: null, chains: null, chainSummary: null }
+      };
     case "SET_DATA_TABLE":
       // We assume SET_DATA_TABLE maps to stage 1 (Syntax base) on import
       return { ...state, dataTable: action.payload, history: [] }; // Reset history on new file

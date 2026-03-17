@@ -35,18 +35,37 @@ export function StatusBar({ activeTab, activeStage }) {
     const logger = createLogger();
 
     if (runGroup === 'group2') {
-        const { proposals } = PcfTopologyGraph2(state.stage2Data, state.config, logger);
-        setZustandProposals(proposals);
+        // Enforce running Pass 1 explicitly by sending currentPass: 1
+        const { proposals } = PcfTopologyGraph2(state.stage2Data, { ...state.config, currentPass: 1 }, logger);
+
+        // Clear previous proposals for Pass 1 from Zustland before setting new
+        // and also filter them down just in case
+        const pass1Proposals = proposals.filter(p => p.pass === "Pass 1");
+        setZustandProposals(pass1Proposals);
+
         let errorFixes = 0;
         let warnFixes = 0;
-        const updatedTable = [...state.stage2Data];
+
+        // We map so we clear out any previous pass results and start fresh
+        const updatedTable = state.stage2Data.map(r => {
+            const row = { ...r };
+            if (!row._passApplied) {
+                delete row.fixingAction;
+                delete row.fixingActionTier;
+                delete row.fixingActionScore;
+                delete row.fixingActionRuleId;
+                delete row._fixApproved;
+            }
+            return row;
+        });
+
         logger.getLog().forEach(entry => {
              dispatch({ type: "ADD_LOG", payload: entry });
              if (entry.tier && entry.tier <= 2) errorFixes++;
              if (entry.tier && entry.tier === 3) warnFixes++;
-             if (entry.row && entry.tier) {
+             if (entry.row && entry.tier && entry.row !== "-") {
                  const row = updatedTable.find(r => r._rowIndex === entry.row);
-                 if (row) {
+                 if (row && !row._passApplied && (!row.fixingActionTier || entry.tier < row.fixingActionTier)) {
                      row.fixingAction = entry.message;
                      row.fixingActionTier = entry.tier;
                      row.fixingActionRuleId = entry.ruleId;
@@ -54,10 +73,19 @@ export function StatusBar({ activeTab, activeStage }) {
                  }
              }
         });
+
+        pass1Proposals.forEach(prop => {
+            const row = updatedTable.find(r => r._rowIndex === prop.elementA._rowIndex);
+            if (row && !row._passApplied) {
+                row.fixingAction = prop.description;
+                row.fixingActionTier = prop.dist < 25 ? 2 : 3;
+                if (prop.score !== undefined) row.fixingActionScore = prop.score;
+            }
+        });
         dispatch({ type: "SET_STAGE_2_DATA", payload: updatedTable });
         setZustandData(updatedTable);
         dispatch({ type: "SMART_FIX_COMPLETE", payload: { pass: 1, summary: {} } });
-        dispatch({ type: "SET_STATUS_MESSAGE", payload: `Analysis Complete (Group 2): Generated ${proposals.length} proposals.` });
+        dispatch({ type: "SET_STATUS_MESSAGE", payload: `Analysis Complete (Group 2): Generated ${pass1Proposals.length} proposals.` });
     } else {
         const result = runSmartFix(state.stage2Data, state.config, logger);
         let errorFixes = 0;
@@ -82,7 +110,9 @@ export function StatusBar({ activeTab, activeStage }) {
         tableToProcess = applyApprovedMutations(tableToProcess, useStore.getState().proposals, logger);
     }
 
-    const result = applyFixes(tableToProcess, state.smartFix.chains, state.config, logger);
+    // `chains` may be undefined if we didn't run runSmartFix (Group 1), but applyFixes expects an iterable.
+    const chainsToProcess = state.smartFix.chains || [];
+    const result = applyFixes(tableToProcess, chainsToProcess, state.config, logger);
 
     logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
 
@@ -94,8 +124,15 @@ export function StatusBar({ activeTab, activeStage }) {
   const isValidationDone = state.smartFix.validationDone === true;
   const isRunning = state.smartFix.status === "running";
   const isApplying = state.smartFix.status === "applying";
-  // Second Pass ready once at least one Apply Fixes has completed
-  const isSecondPassReady = (state.smartFix.smartFixPass || 0) >= 1 && !isRunning && !isApplying;
+
+  // Smart Fix should be disabled once clicked, unless we reset it.
+  // We can track if the smartFixPass > 0 (meaning a pass was run) and disable the main Smart Fix button.
+  const hasRunSmartFix = (state.smartFix.smartFixPass || 0) > 0;
+
+  // Second Pass ready once Phase 1 Validator is done, no need to wait for Smart Fix 1 or Apply Fixes.
+  const isSecondPassReady = isValidationDone && !isRunning && !isApplying;
+
+  const canRunSmartFix = isDataLoaded && !isRunning && isValidationDone && !hasRunSmartFix;
 
   // Apply Fixes enabled if any row approved and not currently applying
   const hasApprovedFixes = state.stage2Data && state.stage2Data.some(r => r._fixApproved === true);
@@ -104,16 +141,53 @@ export function StatusBar({ activeTab, activeStage }) {
   const handleSecondPass = () => {
     dispatch({ type: "SET_SMART_FIX_STATUS", status: "running" });
     const logger = createLogger();
-    const pass2Table = state.stage2Data.map(r => ({ ...r, _currentPass: 2 }));
+    // Clear out prior fixingAction warnings/proposals from Pass 1 to give a clean slate for Pass 2
+    // User requested: "when 'Run second pass' is clicked do not reset _Issuelisted but reset _fixApproved"
+    // So we clear _fixApproved globally, and clear fixingAction so Pass 1 items don't clutter the UI during Pass 2 evaluation.
+    const pass2Table = state.stage2Data.map(r => {
+        const cleanRow = { ...r, _currentPass: 2 };
+
+        // Remove old Pass 1 proposals that were not applied
+        if (!cleanRow._passApplied) {
+            delete cleanRow.fixingAction;
+            delete cleanRow.fixingActionTier;
+            delete cleanRow.fixingActionScore;
+            delete cleanRow.fixingActionRuleId;
+            delete cleanRow._fixApproved;
+        }
+
+        return cleanRow;
+    });
     
+    // We only pass the current Pass 2 config so the engine explicitly runs Pass 2
     if (runGroup === 'group2') {
-        const { proposals } = PcfTopologyGraph2(pass2Table, state.config, logger);
-        setZustandProposals(proposals);
+        const { proposals } = PcfTopologyGraph2(pass2Table, { ...state.config, currentPass: 2 }, logger);
+
+        // Filter proposals down to only the un-applied ones and enforce Pass 2 specific
+        const activeProposals = proposals.filter(p => !p.elementA._passApplied && !p.elementB._passApplied && p.pass === "Pass 2");
+        setZustandProposals(activeProposals);
+
+        let hasPass2Proposals = false;
+
+        // Attach new proposals to rows so they render correctly in the DataTable
+        activeProposals.forEach(prop => {
+            if (prop.pass === 'Pass 2') {
+                hasPass2Proposals = true;
+            }
+            const row = pass2Table.find(r => r._rowIndex === prop.elementA._rowIndex);
+            if (row && !row._passApplied) {
+                row.fixingAction = prop.description;
+                row.fixingActionTier = prop.dist < 25 ? 2 : 3;
+                if (prop.score !== undefined) row.fixingActionScore = prop.score;
+            }
+        });
+
         logger.getLog().forEach(entry => {
              dispatch({ type: "ADD_LOG", payload: entry });
-             if (entry.row && entry.tier) {
+             if (entry.row && entry.tier && entry.row !== "-") {
                  const row = pass2Table.find(r => r._rowIndex === entry.row);
-                 if (row) {
+                 // Only overwrite if it's not a previously applied pass
+                 if (row && !row._passApplied && (!row.fixingActionTier || entry.tier < row.fixingActionTier)) {
                      row.fixingAction = entry.message;
                      row.fixingActionTier = entry.tier;
                      row.fixingActionRuleId = entry.ruleId;
@@ -121,10 +195,17 @@ export function StatusBar({ activeTab, activeStage }) {
                  }
              }
         });
+
+        if (!hasPass2Proposals) {
+             dispatch({ type: "ADD_LOG", payload: { stage: "FIXING", type: "Info", message: "Pass 2 did not yield any new proposals for existing gaps.", row: "-" } });
+             dispatch({ type: "SET_STATUS_MESSAGE", payload: "Pass 2 Analysis Complete: No new issues found." });
+        } else {
+             dispatch({ type: "SET_STATUS_MESSAGE", payload: `Pass 2 Analysis Complete: Generated ${activeProposals.filter(p=>p.pass==='Pass 2').length} proposals.` });
+        }
+
         dispatch({ type: "SET_STAGE_2_DATA", payload: pass2Table });
         setZustandData(pass2Table);
         dispatch({ type: "SMART_FIX_COMPLETE", payload: { pass: 2, summary: {} } });
-        dispatch({ type: "SET_STATUS_MESSAGE", payload: "Group 2 Pass Complete: Review proposals and Apply Fixes." });
     } else {
         const result = runSmartFix(pass2Table, { ...state.config, currentPass: 2 }, logger);
         logger.getLog().forEach(entry => dispatch({ type: "ADD_LOG", payload: entry }));
@@ -147,9 +228,11 @@ export function StatusBar({ activeTab, activeStage }) {
       // Validation: populates fixingAction with ERROR/WARNING messages — read-only, no coord changes
       runValidationChecklist(processedTable, state.config, logger, "2");
 
+      let finalProposals = [];
       if (runGroup === 'group2') {
           // Generate Zustand proposals only — do NOT apply mutations yet
           const { proposals } = PcfTopologyGraph2(processedTable, state.config, logger);
+          finalProposals = proposals;
           setZustandProposals(proposals);
           // proposals will be applied ONLY when user clicks "Apply Fixes"
       }
@@ -168,6 +251,18 @@ export function StatusBar({ activeTab, activeStage }) {
           }
         }
       });
+
+      // Override fixingAction with proposals from group2 so they show up
+      if (runGroup === 'group2') {
+          finalProposals.forEach(prop => {
+              const row = processedTable.find(r => r._rowIndex === prop.elementA._rowIndex);
+              if (row) {
+                  row.fixingAction = prop.description;
+                  row.fixingActionTier = prop.dist < 25 ? 2 : 3;
+                  if (prop.score !== undefined) row.fixingActionScore = prop.score;
+              }
+          });
+      }
 
       dispatch({ type: "SET_STAGE_2_DATA", payload: processedTable });
       setZustandData(processedTable);
@@ -265,7 +360,7 @@ export function StatusBar({ activeTab, activeStage }) {
             </button>
         )}
 
-        {activeStage === '2' && (
+        {(activeTab === 'data' && activeStage === '2') && (
           <button
             onClick={() => setShowModal(true)}
             disabled={!isDataLoaded}
@@ -299,9 +394,9 @@ export function StatusBar({ activeTab, activeStage }) {
 
                 <button
                   onClick={handleSmartFix}
-                  disabled={!isDataLoaded || isRunning || !isValidationDone}
+                  disabled={!canRunSmartFix}
                   className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 rounded font-medium disabled:opacity-50 transition-colors h-full"
-                  title={!isValidationDone ? "Run Phase 1 Validator first" : "Analyse data and generate fix proposals"}
+                  title={!isValidationDone ? "Run Phase 1 Validator first" : hasRunSmartFix ? "Smart Fix already executed" : "Analyse data and generate fix proposals"}
                 >
                   {isRunning ? "Analyzing..." : "Smart Fix 🔧"}
                 </button>
@@ -319,7 +414,7 @@ export function StatusBar({ activeTab, activeStage }) {
                   onClick={handleSecondPass}
                   disabled={!isSecondPassReady}
                   className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 rounded font-medium disabled:opacity-50 transition-colors h-full"
-                  title={!isSecondPassReady ? "Apply Fixes (Pass 1) first to unlock Second Pass" : "Run Second Pass for non-Pipe components"}
+                  title={!isSecondPassReady ? "Run Phase 1 Validator first" : "Run Second Pass for non-Pipe components"}
                 >
                   🚀 Run Second Pass
                 </button>

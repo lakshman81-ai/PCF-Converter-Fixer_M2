@@ -38,6 +38,25 @@ export function runValidationChecklist(dataTable, config, logger, stage = "1") {
         }
     }
 
+    // V17: No EP should be blank or "-"
+    if (shouldRun('V17')) {
+        const checkEP = (ep, name) => {
+            if (ep === undefined || ep === null || ep === "" || ep === "-") {
+                logger.push({ stage: "VALIDATION", type: "Error", ruleId: "V17", tier: 4, row: ri, message: `ERROR [V17]: ${name} is missing, blank, or "-".` });
+                errorCount++;
+            }
+        };
+        // Exclude components that legitimately do not have end-points like SUPPORT (handled else where/not strictly required to have EP),
+        // but typically all connectable physical components should have at least EP1.
+        // Actually the rule just says "No EP should be blank or -". Let's apply it generally to physical components that have parsed EPs.
+        // If it's undefined, maybe it wasn't parsed. If it's a structural component, it needs it.
+        const nonEpComps = ["OLET", "SUPPORT", "PIPELINE-REFERENCE", "MESSAGE-SQUARE"];
+        if (!nonEpComps.includes(type) && !type.startsWith("UNITS-")) {
+            checkEP(row.ep1, "EP1");
+            checkEP(row.ep2, "EP2");
+        }
+    }
+
     // V3: Bore Consistency
     if (shouldRun('V3')) {
         if (type.includes("REDUCER")) {
@@ -48,7 +67,15 @@ export function runValidationChecklist(dataTable, config, logger, stage = "1") {
         } else if (["PIPE", "FLANGE", "VALVE", "BEND", "TEE"].includes(type)) {
             if (row._rowIndex > 1) {
                 const prevRow = dataTable.find(r => r._rowIndex === row._rowIndex - 1);
-                if (prevRow && !prevRow.type.includes("REDUCER") && prevRow.bore && row.bore && prevRow.bore !== row.bore) {
+
+                // Fix: Check if this row is actually connected to the previous row before comparing bores.
+                // If it's a branch from somewhere else (like Row 6 connecting to Row 3 branch), the bore might legitimately differ from the sequential previous row.
+                let isSequentiallyConnected = false;
+                if (prevRow && prevRow.ep2 && row.ep1 && (Math.abs(prevRow.ep2.x - row.ep1.x) < 1 && Math.abs(prevRow.ep2.y - row.ep1.y) < 1 && Math.abs(prevRow.ep2.z - row.ep1.z) < 1)) {
+                    isSequentiallyConnected = true;
+                }
+
+                if (isSequentiallyConnected && prevRow && !prevRow.type.includes("REDUCER") && prevRow.bore && row.bore && prevRow.bore !== row.bore) {
                      logger.push({ stage: "VALIDATION", type: "Error", ruleId: "V3", tier: 4, row: ri, message: `ERROR [V3]: PIPE bore changes without being reducer.` });
                      errorCount++;
                 }
@@ -117,9 +144,13 @@ export function runValidationChecklist(dataTable, config, logger, stage = "1") {
     if (stage !== "1") continue;
 
     // V1: No (0,0,0) coords
+    // If a point is exactly (0,0,0), it usually means it was not exported properly.
+    // We should log a warning/error, and then the Fixer can calculate it based on previous row and length.
     const checkV1 = (pt, name) => {
       if (pt && vec.isZero(pt)) {
-        logger.push({ stage: "VALIDATION", type: "Error", ruleId: "V1", tier: 4, row: ri, message: `ERROR [V1]: ${name} coordinate is exactly (0,0,0).` });
+        row.fixingAction = `[V1] ${name} is (0,0,0). Will attempt to calculate via Prev/Next EP and component length.`;
+        row.fixingActionTier = 3;
+        logger.push({ stage: "VALIDATION", type: "Error", ruleId: "V1", tier: 4, row: ri, message: `ERROR [V1]: ${name} coordinate is exactly (0,0,0). Needs calculation.` });
         errorCount++;
       }
     };
