@@ -38,6 +38,25 @@ export function runValidationChecklist(dataTable, config, logger, stage = "1") {
         }
     }
 
+    // V17: No EP should be blank or "-"
+    if (shouldRun('V17')) {
+        const checkEP = (ep, name) => {
+            if (ep === undefined || ep === null || ep === "" || ep === "-") {
+                logger.push({ stage: "VALIDATION", type: "Error", ruleId: "V17", tier: 4, row: ri, message: `ERROR [V17]: ${name} is missing, blank, or "-".` });
+                errorCount++;
+            }
+        };
+        // Exclude components that legitimately do not have end-points like SUPPORT (handled else where/not strictly required to have EP),
+        // but typically all connectable physical components should have at least EP1.
+        // Actually the rule just says "No EP should be blank or -". Let's apply it generally to physical components that have parsed EPs.
+        // If it's undefined, maybe it wasn't parsed. If it's a structural component, it needs it.
+        const nonEpComps = ["OLET", "SUPPORT", "PIPELINE-REFERENCE", "MESSAGE-SQUARE"];
+        if (!nonEpComps.includes(type) && !type.startsWith("UNITS-")) {
+            checkEP(row.ep1, "EP1");
+            checkEP(row.ep2, "EP2");
+        }
+    }
+
     // V3: Bore Consistency
     if (shouldRun('V3')) {
         if (type.includes("REDUCER")) {

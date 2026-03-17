@@ -393,7 +393,7 @@ const SingleIssuePanel = ({ proposals, validationIssues, currentIssueIndex, setC
                                 {currentItem.data._fixApproved === true ? (
                                     <div className="w-full text-center text-green-500 font-bold text-sm py-1 bg-green-900/20 rounded border border-green-800/30">✓ Approved</div>
                                 ) : currentItem.data._fixApproved === false ? (
-                                    <div className="w-full text-center text-slate-500 line-through font-bold text-sm py-1 bg-slate-800/50 rounded border border-slate-700">✗ Rejected</div>
+                                    <div className="w-full text-center text-red-500 font-bold text-sm py-1 bg-red-900/20 rounded border border-red-800/30">✗ Rejected</div>
                                 ) : (
                                     <>
                                         <button className="flex-1 bg-green-800 hover:bg-green-700 text-white text-sm py-1.5 rounded transition" onClick={(e) => onApprove(e, currentItem.data)}>

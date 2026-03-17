@@ -44,7 +44,7 @@ export function ConfigTab() {
         <h3 className="font-semibold text-slate-700 mb-3 border-b pb-2">Validation Rules Checklist (V1-V24)</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2">
             {[
-              { id: 'V1', desc: 'No (0,0,0) coordinates' },
+              { id: 'V1', desc: 'Attempt to calculate (0,0,0) coordinates' },
               { id: 'V2', desc: 'Decimal consistency' },
               { id: 'V3', desc: 'Bore consistency' },
               { id: 'V4', desc: 'BEND CP != EP1' },
@@ -60,7 +60,7 @@ export function ConfigTab() {
               { id: 'V14', desc: 'Missing <SKEY>' },
               { id: 'V15', desc: 'Coordinate continuity' },
               { id: 'V16', desc: 'CA8 usage scope' },
-              { id: 'V17', desc: 'Reserved' },
+              { id: 'V17', desc: 'No EP should be blank or -' },
               { id: 'V18', desc: 'Bore unit (MM/Inch check)' },
               { id: 'V19', desc: 'SUPPORT MSG-SQ tokens' },
               { id: 'V20', desc: 'SUPPORT GUID Prefix (UCI:)' },

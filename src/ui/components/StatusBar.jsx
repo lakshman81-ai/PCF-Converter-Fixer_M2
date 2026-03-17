@@ -153,9 +153,9 @@ export function StatusBar({ activeTab, activeStage }) {
             delete cleanRow.fixingActionTier;
             delete cleanRow.fixingActionScore;
             delete cleanRow.fixingActionRuleId;
+            delete cleanRow._fixApproved;
         }
 
-        delete cleanRow._fixApproved;
         return cleanRow;
     });
     
@@ -163,11 +163,8 @@ export function StatusBar({ activeTab, activeStage }) {
     if (runGroup === 'group2') {
         const { proposals } = PcfTopologyGraph2(pass2Table, { ...state.config, currentPass: 2 }, logger);
 
-        // Keep previously applied changes in Zustland, override with new
-        // Wait, Pass 2 might still return some Pass 1 proposals if we aren't careful,
-        // but PcfTopologyGraph2 will output both Pass 1 and Pass 2 proposals when currentPass=2.
-        // Let's filter proposals down to only the un-applied ones so we don't duplicate.
-        const activeProposals = proposals.filter(p => !p.elementA._passApplied && !p.elementB._passApplied);
+        // Filter proposals down to only the un-applied ones and enforce Pass 2 specific
+        const activeProposals = proposals.filter(p => !p.elementA._passApplied && !p.elementB._passApplied && p.pass === "Pass 2");
         setZustandProposals(activeProposals);
 
         let hasPass2Proposals = false;
