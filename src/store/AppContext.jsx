@@ -34,8 +34,6 @@ const initialState = {
         pass3Resolved: false,
         pass4GlobalAxis: true
       },
-      weights: { lineKey: 10, sizeRatio: 5, elementalAxis: 3, globalAxis: 2 },
-      minApprovalScore: 10,
       minGap: 6,
       connectionTolerance: 25.0,
       gridSnapResolution: 1.0,

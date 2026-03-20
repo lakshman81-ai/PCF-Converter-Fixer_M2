@@ -50,7 +50,7 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                 if (prev && getExitPoint(prev)) {
                     // If it's a pipe, try to trace forward
                     const start = getExitPoint(prev);
-                    let fixDesc = `[Pass 1] [Issue] EP1 is (0,0,0).\n[Proposal] Calculated EP1 from Row ${prev._rowIndex} exit point.`;
+                    let fixDesc = `[1st Pass]\n[Issue] EP1 is (0,0,0).\n[Proposal] Calculated EP1 from Row ${prev._rowIndex} exit point.`;
                     proposals.push({
                        elementA: C, elementB: prev, fixType: 'ZERO_COORD_CALC', dist: 0, score: 20, description: fixDesc, pass: "Pass 1",
                        target: 'ep1', newPt: { ...start }
@@ -62,7 +62,7 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                 const next = physicals[i+1];
                 if (next && getEntryPoint(next)) {
                     const end = getEntryPoint(next);
-                    let fixDesc = `[Pass 1] [Issue] EP2 is (0,0,0).\n[Proposal] Calculated EP2 from Row ${next._rowIndex} entry point.`;
+                    let fixDesc = `[1st Pass]\n[Issue] EP2 is (0,0,0).\n[Proposal] Calculated EP2 from Row ${next._rowIndex} entry point.`;
                     proposals.push({
                        elementA: C, elementB: next, fixType: 'ZERO_COORD_CALC', dist: 0, score: 20, description: fixDesc, pass: "Pass 1",
                        target: 'ep2', newPt: { ...end }
@@ -128,24 +128,24 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                     // BM1 overlaps trimming logic
                     if (A.type === 'PIPE' && B.type === 'PIPE' && dist > 50 && ptA.x > ptB.x) {
                         fixType = 'TRIM_OVERLAP';
-                        description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Trim overlapping PIPE by ${dist.toFixed(1)}mm.`;
+                        description = `[1st Pass]\n[Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Trim overlapping PIPE by ${dist.toFixed(1)}mm.`;
                         tier = 2;
                     }
                     // BM2 Multi-axis gap translation
                     else if (dist > 25 && isImmutable(B.type)) {
                         fixType = 'GAP_SNAP_IMMUTABLE_BLOCK';
-                        description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Translate rigid object block to Flange face by ${dist.toFixed(1)}mm.`;
+                        description = `[1st Pass]\n[Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Translate rigid object block to Flange face by ${dist.toFixed(1)}mm.`;
                         tier = 3;
                     }
                     else if (A.type === 'PIPE' && B.type === 'PIPE' && dist < 25) {
                         fixType = 'GAP_STRETCH_PIPE';
-                        description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Stretch adjacent pipes by ${dist.toFixed(1)}mm.`;
+                        description = `[1st Pass]\n[Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Stretch adjacent pipes by ${dist.toFixed(1)}mm.`;
                     } else if (dist < 25 && (isImmutable(A.type) || isImmutable(B.type))) {
                         fixType = 'GAP_SNAP_IMMUTABLE';
-                        description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Translate immutable object by ${dist.toFixed(1)}mm.`;
+                        description = `[1st Pass]\n[Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Translate immutable object by ${dist.toFixed(1)}mm.`;
                     } else {
                         fixType = 'GAP_FILL';
-                        description = `[Pass 1] [Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Inject PIPE bridging gap of ${dist.toFixed(1)}mm.`;
+                        description = `[1st Pass]\n[Issue] Coordinate discontinuity by ${dist.toFixed(1)}mm.\n[Proposal] Inject PIPE bridging gap of ${dist.toFixed(1)}mm.`;
                         tier = 3;
                     }
 
@@ -290,7 +290,7 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                     const injectReducer = (O.bore && C.bore && O.bore !== C.bore);
                     const fixType = injectReducer ? 'GAP_FILL_REDUCER' : 'GAP_FILL';
 
-                    const desc = `[${passUsed}] [Issue] Unresolved topological void of ${dist.toFixed(1)}mm detected via Ray Shooter.\n[Proposal] Inject ${injectReducer ? 'PIPE & REDUCER' : 'PIPE'} bridging ${dist.toFixed(1)}mm.`;
+                    const desc = `[1st Pass]\n[Issue] Unresolved topological void of ${dist.toFixed(1)}mm detected via Ray Shooter.\n[Proposal] Inject ${injectReducer ? 'PIPE & REDUCER' : 'PIPE'} bridging ${dist.toFixed(1)}mm.`;
 
                     // Generate Proposal
                     proposals.push({
@@ -435,7 +435,7 @@ export function PcfTopologyGraph2(dataTable, config, logger) {
                              score += weights.lineKey;
                          }
 
-                         const description = `[Pass 2] [Issue] Non-sequential gap of ${dist.toFixed(1)}mm detected.\n[Proposal] Inject PIPE bridging ${dist.toFixed(1)}mm.`;
+                         const description = `[2nd Pass]\n[Issue] Non-sequential gap of ${dist.toFixed(1)}mm detected.\n[Proposal] Inject PIPE bridging ${dist.toFixed(1)}mm.`;
                          const tier = score < minApprovalScore ? 4 : 3;
 
                          proposals.push({
